@@ -1,0 +1,52 @@
+[chapter Exceptions
+    [quickbook 1.6]
+]
+
+C++ exceptions are quince and the backends' universal response to run-time errors.  They are also the response to the following more normal conditions:
+
+* deadlock
+* failure to connect to a database
+* lost connection to database
+
+Deadlock is discussed further [link deadlock here], and connection issues [link breakage here].
+
+Quince and the backends do not log. Instead they pass any diagnostic messages through the exceptions they throw. These all derive from `std::exception`, and override `std::exception::what()` with a method that returns the message.
+
+Here is a list of all the classes of exception that quince and the backends throw. They are all in namespace `quince`, and defined in `<quince/exceptions.h>`.
+
+[table
+    [[Class] [Base class] [Cause]]
+    [[`exception`][`std::exception`][Any runtime error that quince detects (see subclasses)]]
+    [[`deadlock_exception`][`exception`][A deadlock was detected. Not an error.]]
+    [[`failed_connection_exception`][`exception`][Could not establish communication with a DBMS]]
+    [[`broken_connection_exception`][`exception`][The connection to the DBMS was lost.]]
+    [[`definition_exception`][`exception`][Any error in the definition of a table (see subclasses)]]
+    [[`unmapped_member_exception`][`definition_exception`][Use of an unmapped class member where a mapped member was required.]]
+    [[`column_name_length_exception`][`definition_exception`][Generated column name would exceed a DBMS-imposed limit]]
+    [[`formation_exception`][`exception`][Any error that prevents quince from forming a valid SQL statement (see subclasses)]]
+    [[`server_only_exception`][`formation_exception`][Illegal operation on an expression with no corresponding C++ type]]
+    [[`multi_column_exception`][`formation_exception`][Illegal operation on a multi-column type]]
+    [[`cross_database_query_exception`][`formation_exception`][Two databases referenced in one query]]
+    [[`malformed_modification_exception`][`formation_exception`][Table modification based on a query that is not directly tied to a table]]
+    [[`outside_table_exception`][`formation_exception`][Used a field from the wrong table]]
+    [[`ambiguous_nulls_exception`][`formation_exception`][Type that allows all NULLs used in the part of a join that gives another interpretation to all NULLs]]
+    [[`execution_attempt_exception`][`exception`][Any error that prevents quince from sending a well-formed SQL statement to the DBMS (see subclasses)]]
+    [[`unsupported_exception`][`execution_attempt_exception`][Operation attempted on a DBMS that does not support it]]
+    [[`table_closed_exception`][`execution_attempt_exception`][Illegal operation on a table in the closed state]]
+    [[`table_open_exception`][`execution_attempt_exception`][Illegal operation on a table in the open state]]
+    [[`unsupported_exception`][`execution_attempt_exception`][Operation attempted on a DBMS that does not support it]]
+    [[`non_current_txn_exception`][`execution_attempt_exception`][Use of a transaction that is not the current one]]
+    [[`no_current_txn_exception`][`execution_attempt_exception`][Operation is illegal outside of a transaction]]
+    [[`no_primary_key_exception`][`execution_attempt_exception`][Attempt to open a table with no primary key]]
+    [[`execution_response_exception`][`exception`][Any unexpected response from the DBMS to quince's request to execute an SQL statement (see subclasses)]]
+    [[`no_row_exception`][`execution_response_exception`][No output where output was expected]]
+    [[`multi_row_exception`][`execution_response_exception`][Multi-row output where a sigle row was expected]]
+    [[`missing_type_exception`][`execution_response_exception`][Column type information was missing from output]]
+    [[`missing_column_exception`][`execution_response_exception`][Some data was missing from an output row]]
+    [[`malformed_results_exception`][`execution_response_exception`][Output data was not in the expected format]]
+    [[`retrieved_unrecognized_type_exception`][`execution_response_exception`][Output indicates a column type that quince does not recognize]]
+    [[`retrieved_unexpected_type_exception`][`execution_response_exception`][Output data's type was not the expected type]]
+    [[`retrieved_unexpected_size_exception`][`execution_response_exception`][Output data's size was not the expected size]]
+    [[`table_mismatch_exception`][`execution_response_exception`][Tried to open a table that already exists on the server, but with metadata that doesn't match expectations]]
+    [[`dbms_exception`][`execution_response_exception`][The DBMS reported an error]]
+]

@@ -1,0 +1,94 @@
+[chapter quince_postgresql
+    [quickbook 1.6]
+]
+
+[section:constructor The `quince_postgresql::database` constructor]
+
+The `quince_postgresql` library's /application/ program interface (API) is very small, because almost all calls into `quince_postgresql` are made by quince, not by application code.
+
+In fact, application code only mentions one of `quince_postgresql`'s entry-points: the `quince_postgresql::database` constructor. After that, the application asks /quince/ to create tables, it asks /quince/ to build and execute queries, manipulate data, etc. All the while, behind the scenes, references to the `quince_postgresql::database` object are being passed via constructors from tables to queries to value mappers, and so on, so quince always knows which backend library to use, and it makes frequent use of quince_postgresql functions that are not part of its API.
+
+With that in mind, I present the complete API of quince_postgresql: the `quince_postgresql::database` constructor.
+
+It is available via:
+
+    #include <quince_postgresql/database.h>
+
+and its prototype is:
+
+    database(
+        const std::string &host,
+        const std::string &user,
+        const std::string &password,
+        const std::string &db_name = "",
+        const std::string &default_schema = "",
+        const std::string &port = "",
+        const boost::optional<isolation_level> level = boost::none,
+        boost::optional<const quince::mapping_customization &> customization_for_db = boost::none
+    );
+
+Most of the arguments are information that quince_postgresql will use each time it creates a connection to the database:
+
+* `host` is the domain name of the host running the PostgreSQL server.
+* `user` is the PostgreSQL user name to use when logging in to the PostgreSQL server.
+* `password` is the password to use if the server demands password authentication.
+* `db_name` is the name of the database to connect to. If empty, it defaults to the user name.
+* `default_schema`, if nonempty, is a PostgreSQL schema name that will be set as the SQL ["search path] for each connection. Any quince table object with a [link binomen one-part name] will be taken as referring to a table in that schema.
+* `port` is the TCP port number to connect to, given as a string of decimal digits, e.g. "1234". If empty, it defaults to "5432" (the standard default port for PostgreSQL).
+
+If `level` is supplied, it contains a `quince_postgresql::isolation_level`:
+
+    enum class isolation_level {
+        serializable, repeatable_read, read_committed, read_uncommitted
+    };
+
+Then all transactions will have the corresponding characteristic (=SERIALIZABLE=, =REPEATABLE READ=, =READ COMMITTED= or =READ UNCOMMITTED=), which are explained [@http://www.postgresql.org/docs/9.2/static/sql-set-transaction.html here]. If you don't supply an `isolation_level`, then quince_postgresql doesn't supply one to PostgreSQL, and it uses =READ COMMITTED= by default.
+
+`customization_for_db` is used to deploy custom mappings throughout the database, as described [link custom.deployment.database here].
+
+If you are setting custom mappings for the database, or if you intend to add custom mappings for any tables in the database, then you need to read the rest of this chapter. Otherwise your study of the quince_postgresql library is complete.
+
+[endsect]
+
+[section:basic Basic conversions]
+
+The following table lists the C++ types for which quince_postgresql provides [link basic_conversions basic conversions]. So these are the types [~T] for which quince_postgresql allows [link direct_mapper `direct_mapper<`[~T]`>`]. The table also shows the SQL types to which they are converted.
+
+[table
+[[C++ mapped type][SQL type from quince_postgresql's basic conversion]]
+[[`bool`][=boolean=]]
+[[`int16_t`][=smallint=]]
+[[`int32_t`][=integer=]]
+[[`int64_t`][=bigint=]]
+[[`serial`][=bigserial=]]
+[[`float`][=real=]]
+[[`double`][=double precision=]]
+[[`std::string`][=text=]]
+[[`std::vector<uint8_t>`][=bytea=]]
+]
+
+[endsect]
+
+[section:mappers Default mappers]
+
+The following table shows the concrete mapper classes that quince_postgresql will use for each of the polymorphically mapped types, if you don't customize. (The various concrete mapper classes are described [link custom.predefined here].)
+
+[table
+[[C++ mapped type][quince_postgresql's default concrete mapper class]]
+[[`bool`][`direct_mapper<bool>`]]
+[[`int8_t`][`numeric_cast_mapper<int8_t, direct_mapper<int16_t>>`]]
+[[`int16_t`][`direct_mapper<int16_t>`]]
+[[`int32_t`][`direct_mapper<int32_t>`]]
+[[`int64_t`][`direct_mapper<int64_t>`]]
+[[`float`][`direct_mapper<float>`]]
+[[`double`][`direct_mapper<double>`]]
+[[`uint8_t`][`numeric_cast_mapper<uint8_t, direct_mapper<int16_t>>`]]
+[[`uint16_t`][`numeric_cast_mapper<uint16_t, direct_mapper<int32_t>>`]]
+[[`uint32_t`][`numeric_cast_mapper<uint32_t, direct_mapper<int64_t>>`]]
+[[`uint64_t`][`reinterpret_cast_mapper<uint64_t, direct_mapper<int64_t>, uint64_t(0x8000000000000000)>`]]
+[[`std::string`][`direct_mapper<std::string>`]]
+[[`std::vector<uint8_t>`][`direct_mapper<std::vector<uint8_t>>`]]
+[[`serial`][`serial_mapper`]]
+]
+
+[endsect]

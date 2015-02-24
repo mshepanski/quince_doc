@@ -1,0 +1,36 @@
+[section `std::tuple<`...`>`]
+
+[#tuple_mapper]
+[heading Its mapper class: `tuple_mapper<`...`>`]
+
+If [~T0], [~T1] ... are any mapped types, then `std::tuple<`[~T0]`, `[~T1] ...`>` is a mapped type. It is statically mapped: its mapper class is always `tuple_mapper<`[~T0]`, `[~T1] ...`>`.
+
+In addition to mapping `std::tuple<`[~T0]`, `[~T1] ...`>`s to and from column formats, `tuple_mapper<`[~T0]`, `[~T1] ...`>` provides a `get<`...`>()` method, which acts as an analog of `std::get<`...`>()` as it applies to `std::tuple<`[~T0]`, `[~T1] ...`>`.
+
+If [~tm] is an instance of `tuple_mapper<`[~T0]`, `[~T1]...`>`, and [~I] is an integer constant, then [~tm]`.get<`[~I]`>()` returns a const reference to the mapper that maps the tuple's [~I]'th member, counting from zero. If [~I] is out of range, that's a compile-time error.
+
+[heading Example]
+
+    struct oscar {
+        uint16_t year;
+        std::tuple<movie, cinema, critic> bests;
+    };
+    QUINCE_MAP_CLASS(oscar, (year)(bests))
+
+    extern table<oscar> oscars;
+
+    const query<critic> best_critics =
+        oscars.select(oscars->bests.get<2>());
+
+[#tuple_order]
+[heading Order]
+
+When tuples are compared on the server side with the relational operators, or sorted on the server side with `order()`, then the order is lexicographic, with the zeroth member most significant, followed by the first member, and so on.
+
+[heading Representation]
+
+`tuple_mapper` represents data by delegating to each of the member mappers.
+
+When it delegates to the `i`'th member mapper, it adds the numeral [~i], in angle-brackets, to all the column names that the `i`'th member mapper produces, so those names cannot clash with column names that the other member mapppers produce.
+
+[endsect]

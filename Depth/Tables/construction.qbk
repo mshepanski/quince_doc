@@ -1,0 +1,77 @@
+[section:construction Construction and Primary Key]
+
+To get started, we will need a database object. Its type is backend-specific: either `quince_postgresql::database` or `quince_sqlite::database`. [link quince_postgresql.constructor Later] [link quince_sqlite.constructor sections] describe how to construct these, so for now I'll assume that you have either:
+
+    extern quince_postgresql::database db;
+
+or:
+
+    extern quince_sqlite::database db;
+
+Either way, `db` implements the interface `quince::database`, which is all we need here.
+
+Now we can construct a `table`:
+
+    table<point> points(db, "points");
+
+The constructor arguments give the site of the [link target]. So `points` represents an SQL table named =points=, within `db`'s default schema (PostgreSQL) or main database (sqlite).
+
+[heading Schemas, attached databases, and two-part table names]
+
+[#binomen] The name can have two parts, separated by a period:
+
+    table<point> geom_points(db, "geometry.points");
+
+The second part (`points`) is the target's SQL table name. The first part (`geometry`) means different things depending on the kind of database:
+
+* For a PostgreSQL database, it is the target's schema name. If a subsequent call to `geom_points.open()` creates the target, it will do so in the schema =geometry=, creating the schema first if necessary.
+
+* For an sqlite database, it is the target's attached database name. If a subsequent call to `geom_points.open()` creates the target, it will do so in the attached database =geometry=, attaching the database first if necessary. (The attached database's /filename/ may be something else, however; it depends on `db`'s [link filename_map].)
+
+[heading Specifying a primary key]
+
+[h4 Via member mapper(s) ...]
+
+The most general way to specify a `table`'s primary key is to construct the `table` first, and then call its `specify_key()` method:
+
+    points.specify_key(points->x);
+
+So, if a subsequent call to `points.open()` creates the target, the column that represents member `x` will become the primary key. In this example it's a simple `float`, but it can be any mapped type, with any number of columns. Also you can pass multiple mappers as arguments to `specify_key()`.
+
+So the general case is [~table]`.specify_key(`[~mapper0]`,` [~mapper1]`,` ...`)`.
+
+[~table]'s value mapper will be [link expressions.visibility visible] to each of the [~mapperi]s.
+
+Then the primary key will be one that orders the elements of [~table] by all the [~mapperi]s, with [~mapper0] the most significant, [~mapper1] the next most significant, and so on. The ordering for each [~mapperi] will be:
+
+* the ordering described [link optional_order here], [link tuple_order here], or [link class_order here] if it's an `optional_mapper`, `tuple_mapper` or `class_mapper`; and
+* the DBMS's ordering otherwise.
+
+[h4 ... or via a pointer-to-key-member ...]
+
+Very often a table's value type is some class, and its primary key is a member of that class. The method `specify_key_from_ptkm()` caters to that common case, by using a C++ pointer-to-member to identify the primary key:
+
+    points.specify_key_from_ptkm(&point::x);
+
+[h4 ... or at construction]
+
+For brevity, `table` has a constructor that incorporates the work of `specify_key_from_ptkm`. Just pass the member pointer as a third constructor argument. So this:
+
+    table<point> points(db, "points", &point::x);
+
+is equivalent to this:
+
+    table<point> points(db, "points");
+    points.specify_key_from_ptkm(&point::x);
+
+[heading `table` versus `serial_table`]
+
+A `serial_table` is a table where the primary key's values are automatically created and assigned by the DBMS. We'll see how that works when we discuss [link tables.manipulation data manipulation], but here's what we need to know for present purposes.
+
+* A `serial_table`'s primary key must be of type `serial`.
+* The primary key must be supplied by pointer-to-key-member, so `serial_table` has no `specify_key()` method.
+* Aside from those two differences, the calls to construct a `serial_table` and specify its primary key are the same as for a `table`.
+
+Note that `serial_table` does not simply mean ["any table with a `serial` as its primary key]. The defining characteristic of a `serial_table` is that it automatically assigns values to its primary keys. You can have a table whose primary keys are `serial`s that it does not auto-assign, and that would be a `table`, not a `serial_table`.
+
+[endsect]

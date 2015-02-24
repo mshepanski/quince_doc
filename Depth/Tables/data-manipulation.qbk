@@ -1,0 +1,114 @@
+[section:manipulation Data Manipulation]
+
+[section `insert()`]
+
+`table` has an `insert()` method, which takes one value, of the `table`'s value type, as its argument, and adds that value to the table. It's a wrapper for SQL's =INSERT=.
+
+    points.insert({1.4f, -5.6f});
+
+`table::insert()` returns `void`.
+
+`serial_table` also has an `insert()` method, which differs as follows:
+
+* It doesn't use the whole value it is passed: it ignores the primary key member.
+* It lets the DBMS assign a primary key to the newly inserted record.
+* Its return type is `serial`, and it returns the DBMS-assigned key.
+* It has an overload that takes the record by non-const reference. That overload copies the DBMS-assigned key into the given record's primary key member, as well as returning it.
+
+[endsect]
+
+[section:update `update()`]
+
+[heading All of the records ...]
+
+The `update()` method wraps SQL's =UPDATE=. In its simplest form, it updates some part of every record in a table, e.g.:
+
+    points.update(points->y, 9.4f);
+
+sets all the `y`s in `points` to 9.4f,
+
+    points.update(points->y, points->x);
+
+copies the entire `x` column into the `y` column, and:
+
+    points.update(points->y, (points->x + points->y) * 3.0f);
+
+sets each `y` to the result of a server-side computation involving its previous value and the `x` value from the same record.
+
+For any `table` [~t], the call [~t]`.update(`[~m], [~exprn]`)` is allowed when:
+
+* [~m] is a mapper of some mapped type [~T] (possibly multi-column), and
+* [~exprn]'s type is either [~T] or `abstract_mapper<`[~T]`>`.
+
+[~t]'s value mapper will be [link expressions.visibility visible] to [~exprn].
+
+`serial_table` also has an `update()` method, which differs in just one respect: it never updates the primary key. If the set of columns that you ask it to update includes the primary key, that is not an error, but `serial_table::update()` will ignore the primary key as it updates the other columns.
+
+[heading ... or some of the records]
+
+To update only some of the records in the table, we can add a call to `where()` before `update()`. E.g., to set `y` to 9.4f in the `point`s whose `x` is greater than 5:
+
+    points.where(points->x > 5.0f).update(points->y, 9.4f);
+
+Here is a single-cell update (remembering that `x` is `points`'s primary key):
+
+    points.where(points->x == 5.0f).update(points->y, 9.4f);
+
+And a single-record update:
+
+    points.where(points->x == 5.0f).update(*points, point{4.2f, 3.5f});
+
+Or we can pick records to update by means other than `where()`. E.g. this:
+
+    points.order(points->x).limit(3).update(points->y, 9.4f);
+
+sets `points->y` to 9.4f in the rows with the three lowest `x` values; and this:
+
+    screens
+    .jump(movies, screens->current_movie_id == movies->id)
+    .update(movies->title, movies->title + "*");
+
+adds an asterisk to the title of each movie that is currently being screened.
+
+You can't call `update()` on absolutely /any/ query, however. The rule is that the query's value mapper must be identical to, or a copy of, some table's value mapper. That lets quince know which table to update (the one whose value mapper matches the query's), and also which records to update (the ones whose current values are equal to one or more of the values that the query would produce
+[footnote That is not to say that the generated SQL actually compares whole values for equality. Where possible it's a simple =UPDATE= ... =WHERE=, and in other cases it compares primary keys. But these are optimizations; they don't affect the result.]
+).
+
+[endsect]
+
+[section `remove()`]
+
+The `remove()` method is a wrapper for SQL's =DELETE=. In its simplest form, it removes all of a table's records, e.g.:
+
+    points.remove();
+
+leaves the table `points` empty.
+
+To remove only some of the records in the table, we can add a call to `where()` before `remove()`. E.g. to remove all `point`s whose `x` is greater than 5:
+
+    points.where(points->x > 5.0f).remove();
+
+Or we can use other querying features, as we did with `update()`, e.g.:
+
+    points.order(points->x).limit(3).remove();
+
+to remove the points with the three lowest `x` values, or:
+
+    screens
+    .jump(movies, screens->current_movie_id == movies->id)
+    .remove();
+
+to remove all the movies that are currently being screened.
+
+The rule here is the same as for `update()`: the query's value mapper must be identical to, or a copy of, some table's value mapper. That lets quince know which table to remove records from (the one whose value mapper matches the query's), and also which records to remove (the ones whose values are equal to one or more of the values produced by the query).
+
+If the query generates no records, then `remove()` does nothing. If you want to treat this condition specially, you can call one of the following instead of `remove()`:
+
+* `remove_if_exists()` returns a `bool`, which is true iff at least one record was removed.
+* `remove_existing()` throws a `no_row_exception` if there is nothing to remove.
+
+In all other respects `remove_if_exists()` and `remove_existing()` behave exactly like `remove()`.
+
+[endsect]
+
+[endsect]

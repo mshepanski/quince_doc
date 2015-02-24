@@ -1,0 +1,20 @@
+[section `skip()` and `limit()`]
+
+For any query [~q], [~q]`.skip(`...`)` and `q.limit(`...`)` build queries whose output is like [~q]'s output, but cropped at the beginning (`skip`) or at the end (`limit`). Together they are wrappers for SQL's =LIMIT= and =OFFSET=.
+
+For any query [~q], and any value [~n] of type `uint32_t`, [~q]`.skip(`[~n]`)` and [~q]`.limit(`[~n]`)` return `query`s with the following characteristics.
+
+* Their value types are the same as [~q]'s
+* Their value mappers are identical to [~q]'s.
+* Their output consists of a contiguous subsequence of [~q]'s output. More specifically:
+ * [~q]`.skip(`[~n]`)` produces all the records that [~q] would produce after the first [~n].
+ * [~q]`.limit(`[~n]`)` produces all the records that [~q] would produce, up to a maximum of [~n].
+
+It would be a mistake to read `skip` as a direct translation of SQL's =OFFSET=. If you add the clause =LIMIT 10 OFFSET 8= to some SQL query then, as long as the original query would have produced at least 18 rows, the modified query will produce ten rows, /viz./ the 9th thru 18th. By contrast, the quince expression [~q]`.limit(10).skip(8)` produces at most two items
+[footnote The motive for this policy is to uphold compositionality. In [~q]`.limit(10).skip(8)`, you can replace [~q]`.limit(10)` by any other query that produces the same ten items, and overall output will not be affected. But imagine if `skip()` had the semantics of =OFFSET=: the output of [~q]`.limit(10).skip(8)` would depend on records that even [~q]`.limit(10)` itself does not produce.
+]
+.
+
+If you want the behaviour of =LIMIT 10 OFFSET 8=, then put the `skip` first: [~q]`.skip(8).limit(10)`.
+
+[endsect]

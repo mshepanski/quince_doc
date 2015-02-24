@@ -1,0 +1,193 @@
+[section Table Alteration]
+
+[section `rename_from()`]
+
+All tables have a `rename_from()` method, which changes some SQL table's name /to/ the table object's target name. It's a wrapper for SQL's =ALTER TABLE= ... =RENAME TO=.
+
+The form is [~t]`.rename_from(`[~oldname]`)`, where [~t] is a table object, and [~oldname] is a `std::string` containing the current SQL name of some table.
+
+`rename()` cannot move a table from one PostgreSQL schema to another, or from one sqlite attached database to another. So [~oldname] must be a [link binomen one-part name]: the local name of an existing table within the same schema or attached database as [~t]'s target.
+
+[endsect]
+
+[section `add_field()`]
+
+All tables have an `add_field()` method, which adds one or more columns to the [link target]. It's a wrapper for SQL's =ALTER TABLE= ... =ADD COLUMN=.
+
+Suppose the SQL table =points= already exists, with its columns `x` and `y` (perhaps as a result of running the code examples in the previous section), and now we want to add a new mapped member `float z` to each record. We start (at a suitable spot in the code, i.e. in a namespace but not in a function) by defining the value type that we want the table to have:
+
+    struct point_3d {
+        float x;
+        float y;
+        float z;
+    };
+    QUINCE_MAP_CLASS(point_3d, (x)(y)(z))
+
+And then, some time after the construction of `db`, we construct the table object:
+
+    table<point_3d> points(db, "points", &point_3d::x);
+
+The state of affairs right now is:
+
+* We have a table object called `points`, which represents an SQL table with the name =points= and three columns =x=, =y=, =z=.
+* Its target exists (i.e. there is an SQL table at the expected site).
+* Its target does not [link conforms_to conform to] it (because it lacks the =z= column).
+
+Therefore we cannot call `points.open()`. If we tried, it would throw a `table_mismatch_exception`.
+
+So we do this:
+
+    points.add_field(points->z);
+
+This adds a column to the target, with the name (=z=), type (=REAL=) and the =NOT NULL= setting (set) that the mapper `points->z` expects. (And yes, it really does add the column. Table alteration methods do things, unlike `specify_index()` etc. that leave notes to ask `open()` to do things.)
+
+Now the target conforms to the table `points`, so we can go ahead and call `points.open()`, and then proceed with querying and data manipulation.
+
+In this example we passed `add_field()` a `float` mapper, so it added a single =REAL= column; but we can pass a mapper for any mapped type. If it is a multi-column type, then `add_field()` will add multiple columns.
+
+[heading Populating the new field]
+
+By default, `add_field()` fills the new columns with a default-constructed value. That is to say, [~table]`.add_field(`[~mapper]`)` makes a default-constructed value of the mapped type (`float` in this case), and initializes the new columns (just the =z= column in this case) with an SQL representation of that default-constructed value (`0.0f` in this case).
+
+Alternatively you can specify the value as a second argument:
+
+    points.add_field(points->z, -12.6f);
+
+or use a server-side expression:
+
+    points.add_field(points->z, points->x + points->y);
+
+The rules governing the arguments are the same as for [link tables.manipulation.update `update()`]: the first argument must be a mapper for some type [~T], and then the second argument can be [~T] or `abstract_mapper<`[~T]`>`. The table's value mapper is [link expressions.visibility visible] to the second argument.
+
+[endsect]
+
+[section `drop_field()` (PostgreSQL only)]
+
+All tables have a `drop_field()` method, which drops one or more columns from the [link target]. It's a wrapper for SQL's =ALTER TABLE= ... =DROP COLUMN=.
+
+Picking up our story from the previous section, `points` is a table with value type `point_3d`; and its target, also named =points=, [link conforms_to conforms to] it, i.e. the target has columns =x=, =y= and =z= of type =REAL= with their =NOT NULL= constraints set. And let's assume that `points` is currently closed.
+
+Now we want to remove the `y` member.
+
+We can drop the corresponding column from the target, like so:
+
+    points.drop_field(points->y);
+
+Here we passed `drop_field()` a `float` mapper, so it dropped a single =REAL= column; but we can pass a mapper for any mapped type. If it is a multi-column type, then `drop_field()` will drop multiple columns.
+
+[heading How to open it afterwards]
+
+That was easy, but there's a catch. Unlike our `add_field()` example, which brought the target into conformance with the table object, `drop_field()` destroys conformance. The state of affairs /after/ `drop_field()` is:
+
+* We have a C++ object called `points`, which represents an SQL table with the name =points= and three columns =x=, =y=, =z=.
+* Its target exists (i.e. there is an SQL table at the expected site).
+* Its target does not conform to it (because it lacks the `y` column).
+
+The solution is to get another table object. Somewhere out in a namespace-but-not-function scope, we define the new value type:
+
+    struct point_xz {
+        float x;
+        float z;
+    };
+    QUINCE_MAP_CLASS(point_xz, (x)(z))
+
+And then, some time after the construction of `db`, we construct the new table object:
+
+    table<point_xz> new_points(db, "points", &point_xz::x);
+
+Notice that `new_points` shares the same target as `points`. Furthermore, now that that target has only the columns =x= and =y=, each of type =REAL= and each with its =NOT NULL= constraint set, it conforms to `new_points`. So this will succeed:
+
+    // somewhere after new_points's construction and points's drop_field() call:
+    new_points.open();
+
+and we can get on with querying and data manipulation, using `new_points`.
+
+[endsect]
+
+[section `rename_field()` (PostgreSQL only)]
+
+All tables have a `rename_field()` method, which renames one or more columns in the [link target]. It's a wrapper for SQL's =ALTER TABLE= ... =RENAME COLUMN=.
+
+Continuing our story from the previous section, we have a table known in C++ by the name `new_points`, its value type is `point_xz`, its target is the SQL table =points=, the target exists and it [link conforms_to conforms to] `new_points`. We even have `new_points` open. Let's close it again:
+
+    new_points.close();
+
+because there's another alteration coming.
+
+Suppose we no longer like the C++ member name `z`; we now prefer `height`. In future we would like to be using this value type:
+
+    struct point_xh {
+        float x;
+        float height;
+    };
+    QUINCE_MAP_CLASS(point_xh, (x)(height))
+
+and this is the table we want to be using:
+
+    table<point_xh> newer_points(db, "points", &point_xh::x);
+
+We can't open `newer_points` yet because the target doesn't conform to it: one of its columns has the wrong name. Here's the solution:
+
+    newer_points.rename_field(new_points->z, newer_points->height);
+
+which says:
+
+[:In `newer_points`'s target, replace the column name that the mapper `new_points->z` uses by the column name that the mapper `newer_points->height` uses.
+]
+
+(Or we could have written:
+
+    new_points.rename_field(new_points->z, newer_points->height);
+
+which does the same thing.)
+
+Now the target conforms to `newer_points`, so we can call `newer_points.open()` and proceed.
+
+In this example we passed `float` mappers to `rename_field()`, so it renamed a single =REAL= column; but the mappers can be for any mapped type, as long as it's the same mapped type for both (checked at compile time). If it is a multi-column type, then `rename_field()` will rename multiple columns.
+
+To defend against programmer error, [~table]`.rename_field(`[~old]`,` [~new]`)` checks (at run time) that either [~old] or [~new] is part of [~table]'s value mapper.
+
+[endsect]
+
+[section `set_field_type()` (PostgreSQL only)]
+
+All tables have a `set_field_type()` method, which changes the types and/or the =NOT NULL= settings of one or more columns in the [link target]. It's a wrapper for the following SQL constructs:
+
+* =ALTER TABLE= ... =ALTER COLUMN= ... =SET TYPE=
+* =ALTER TABLE= ... =ALTER COLUMN= ... =SET NOT NULL=
+* =ALTER TABLE= ... =ALTER COLUMN= ... =DROP NOT NULL=
+
+But back to our story. As we left it in the previous section, the SQL table =points= [link conforms_to conformed to] the table object `newer_point`. In particular, it had a =REAL= column corresponding to a member declared `float height`.
+
+But now we decide that heights will require double precision. In PostgreSQL terms, that's a change from =REAL= to =DOUBLE PRECISION=. But we work in C++, so for us it's a change from `float` to `double`. So our table is going to need a new value type (again). Let's define it:
+
+    struct point_xhd {
+        float x;
+        double height;
+    };
+    QUINCE_MAP_CLASS(point_xhd, (x)(height))
+
+and let's construct the latest table object:
+
+    table<point_xhd> newest_points(db, "points", &point_xhd::x);
+
+Now, to make the target conform to `newest_points`, we change the column type:
+
+    newest_points.set_field_type(newest_points->height);
+
+which says:
+
+[:In `newest_points`'s target, change the type of the column that `newest_points->height` represents, from whatever it might be now, to the SQL type that `newest_points->height` uses.]
+
+The existing values in the affected column are converted from the old type to the new type, as if by a [link expressions.cast server-side cast].
+
+Here we passed a `double` mapper, so one column changed type; but we can pass a mapper for any mapped type. If it is a multi-column type, then `set_field_type()` will set the types of all the columns, /provided that/ columns already exist with the names that the mapper expects.
+
+We can use `set_field_type()` to change optionals to non-optionals or /vice versa/, again with the proviso that columns already exist with the names that the mapper expects
+[footnote The only effect of the proviso is that we can't change a [~T] to a `boost::optional<`[~T]`>` when [~T] is a type that can be represented by all [^NULL]s. E.g. you can't change a `boost::optional<float>` to a `boost::optional<boost::optional<float>>`. It's not a restriction you're likely to run into.
+]
+. Then `set_field_type()` will change the =NOT NULL= settings, from whatever they might be now, to the settings that the mapper expects (described [link optionals_representation here]).
+
+[endsect]
+
+[endsect]

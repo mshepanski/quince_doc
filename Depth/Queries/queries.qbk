@@ -1,0 +1,46 @@
+[chapter Queries
+    [quickbook 1.6]
+]
+
+[section Queries in General ]
+
+I use the noun ["query], in normal font, for objects of various C++ types:
+
+* `query<`...`>`
+* tables (both types: `table<`...`>` and `serial_table<`...`>`)
+* `table_alias<`...`>`
+* `junction<`...`>`
+* `conditional_junction<`...`>`
+
+This chapter describes features that all queries have in common, and here are some to get started:
+
+* Every query has a C++ /value type/ [~T].
+* Every query implements the interface `abstract_query<`[~T]`>`, and consequently:
+ * It has a /value mapper/, which tells it precisely how to represent its value type.
+ * It is implicitly convertible to `query<`[~T]`>`.
+ * It has an `operator->()`, which returns a const pointer to the value mapper, and an `operator*()`, which returns a const reference to the value mapper (so the conventional relationship between `->` and `*` is maintained).
+* Every query has a copy constructor.
+* No query has a default constructor.
+* No query as an assignment operator.
+
+Creating a query always begins with creating a table. That part is not explained until [link tables the next chapter], so examples in this chapter tend to start with a puff of smoke, along the lines of:
+
+    extern table<point> points;
+
+Once we have that, we can get our hands on the common query features, i.e. the methods declared in the `abstract_query<`...`>` interface, and any free functions that accept an `abstract_query<`...`>` as an argument. That gives us `select()`, `where()`, `join()` etc.: all the tools for building more complex queries. It also gives us the means for executing them.
+
+As far as possible, we should write code that treats all the flavors of query alike. If we're writing a function and we want it to take a query argument by reference, let's declare the argument as `const abstract_query<`...`> &`. If we're creating a variable so we can put queries into it, let's declare the variable as `query<`...`>`. Then `table`s, `junction`s etc. will all be implicitly converted on the way in, and they'll all look the same on the way out.
+
+One more thing that all queries have in common: they know which database they belong to. That is because (as we shall see), tables have that information from the moment they are constructed, and it is passed down the line every time one query is used to build another. If a query is built from more than one other query (e.g. by `join()`), then all the constituent queries must belong to the same database as one other (this is checked at run time).
+
+[endsect]
+
+[include compositionality.qbk]
+[include select.qbk]
+[include where.qbk]
+[include order.qbk]
+[include distinct.qbk]
+[include join.qbk]
+[include set-theoretic.qbk]
+[include skip-limit.qbk]
+[include executing.qbk]

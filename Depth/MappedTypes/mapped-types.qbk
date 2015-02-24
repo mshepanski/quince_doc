@@ -1,0 +1,41 @@
+[chapter Mapped Data Types
+    [quickbook 1.6]
+]
+
+[section Definition, Taxonomy]
+
+Mapped types are C++ types that quince (with help from the backends) knows how to represent. A mapped type is allowed to be:
+
+* the [~T] in `table<`[~T]`>` or `query<`[~T]`>`,
+* sorted on the server side. using `order()`,
+* a parameter to, or the result of, a [link expressions server-side computation], if its specific type is appropriate to the context.
+
+What makes a C++ type a mapped type is that it has a /mapper class/. We can categorize mapped types according to the way the mapper class is supplied.
+
+* mapped types
+ * polymorphically mapped
+  * default mapper class is suplied by quince
+   * `serial`
+  * default mapper class is supplied by backend
+   * `bool`
+   * 8-, 16-, 32-, and 64-bit signed integers
+   * 8-, 16-, 32-, and 64-bit unsigned integers
+   * `float` and `double`
+   * `std::string`
+   * `std::vector<uint8_t>`
+   * possibly others
+ * statically mapped
+  * mapper class is supplied by quince
+   * `boost::optional<`[~T]`>`, where [~T] is a mapped type
+   * `std::tuple<`[~T0, ~T1 ...]`>`, where [~T0, T1 ...] are mapped types.
+  * mapper class is supplied by application code (with help from quince macros)
+   * user-defined class (whether `class` or `struct`).
+
+Whatever a type [~T]'s mapper class might be, and whoever supplies it, it is always the case that it implements the interface `abstract_mapper<`[~T]`>`.
+
+[endsect]
+
+[include polymorphic.qbk]
+[include boost-optional.qbk]
+[include std-tuple.qbk]
+[include classes.qbk]

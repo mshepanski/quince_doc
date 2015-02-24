@@ -1,0 +1,101 @@
+[section Deployment]
+
+[section:database To a Database ...]
+
+Suppose we want a PostgreSQL database where all the `uint16_t`s are mapped by
+
+    reinterpret_cast_mapper<uint16_t, direct_mapper<int16_t>>
+    
+, all the `uint32_t`s are mapped by
+
+    reinterpret_cast_mapper<uint32_t, direct_mapper<int32_t>>
+    
+, and all the other polymorphically mapped types use quince_postgresql's default mappers. Then the steps are:
+
+# Create a `mapping_customization` object.
+# Record our two overrides in the `mapping_customization` object, using its `customize()` method.
+# Pass the `mapping_customization` object as an extra argument to the database constructor.
+
+So this would do it:
+
+    mapping_customization custom;
+    custom.customize<uint16_t, reinterpret_cast_mapper<uint16_t, direct_mapper<int16_t>>>();
+    custom.customize<uint32_t, reinterpret_cast_mapper<uint32_t, direct_mapper<int32_t>>>();
+
+    const quince_postgresql::database special_db(
+        "localhost",
+        "postgres",
+        "postgres",
+        "quincetest",
+        "test",
+        "",
+        boost::none,
+        custom
+    );
+
+In each call to `mapping_customization::customize()`, we use template parameters to supply two /types/:
+
+* a mapped type [~T], and
+* a concrete mapper class (some implementation of `abstract_mapper<`[~T]`>`) that will perform mappings for [~T] wherever the `mapping_customization` is deployed.
+
+To deploy it to a database, we pass the `mapping_customization` as an argument to the database constructor. (The constructor argument lists are described in full [link quince_postgresql.constructor here] and [link quince_sqlite.constructor here].)
+
+[heading Global databases]
+
+The code above includes function calls, so it must be inside the body of some function; /ergo/ `special_db` is a local variable.
+
+I don't know about you, but I usually want my `database` object to be a global variable. So I need some other means to ensure that steps 1-3 are carried out in order. There are several techniques, but this is my personal favorite:
+[#my_customization]
+
+    struct my_customization : mapping_customization {
+        my_customization() {
+            customize<uint16_t, reinterpret_cast_mapper<uint16_t, direct_mapper<int16_t>>>();
+            customize<uint32_t, reinterpret_cast_mapper<uint32_t, direct_mapper<int32_t>>>();
+        }
+    };
+
+    const quince_postgresql::database special_db(
+        "localhost",
+        "postgres",
+        "postgres",
+        "quincetest",
+        "test",
+        "",
+        boost::none,
+        my_customization()
+    );
+
+[endsect]
+
+[section:table ... or to a Table]
+
+To customize mappings within a table, pass a `mapping_customization` as an extra argument to the table's constructor. All the [link tables.construction various forms of `table` and `serial_table` constructors] allow this extra argument at the end. Thus:
+
+    serial_table<animal> animals(db, "animals", &animal::id, my_customization());
+
+Now all the `uint16_t`s and `uint32_t`s in `animals` will be represented in signed integer columns of 16 and 32 bits respectively, as specified in [link my_customization `my_customization`]. For any other polymorphically mapped type [~T], the choice of mapper class falls back to the database: it will apply its own custom mapper for [~T], if it has one, or else fall back to the defaults from the backend library.
+
+[heading Warning, Beware, Caution, /Caveat/]
+
+Table-level customizations are fine as long as you are storing values like this:
+
+    animals
+    .where(animals->id == jumbo_id)
+    .update(animals->n_legs, uint16_t(4));
+
+and retrieving them like this:
+
+    const optional<uint16_t> n_legs = animals
+        .where(animals->id == jumbo_id)
+        .select(animals->n_legs)
+        .get();
+
+but any use of table-level customized data in server-side expressions is fraught with hazards. E.g. in the expression `animals->n_legs + 2u`, the left operand is mapped according to the table's customized mapping, but the `2u` (in that context) does not belong to the table, so it is mapped according to the database's mapping (which may or may not have its own customizations). And the expression as a whole does not belong to the table, so if it's value goes back to the client, it will be converted to C++ data by the database's mapping, not the table's.
+
+My advice is: use table-level customization sparingly. It is for situations where you have a large amount of data that needs to be stored compactly, but then you need to keep /that/ data away from server-side expressions.
+
+All uses of `numeric_cast_mapper` and `reinterpret_cast_mapper` have their problems, as we know, but if the deployments stay at the database level, then at least you can be sure that a consistent set of mappings will apply across any given query.
+
+[endsect]
+
+[endsect]

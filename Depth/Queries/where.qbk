@@ -1,0 +1,15 @@
+[section `where()`]
+
+For any query [~q], [~q]`.where(`...`)` builds a query whose output is [~q]'s output, filtered by some condition. It's a wrapper for SQL's =WHERE=.
+
+You can call [~q]`.where(`[~condition]`)` provided that [~condition] is an `abstract_mapper<bool>` or a `bool`.
+
+[~q]'s value mapper will be [link expressions.visibility visible] to [~condition].
+
+[~q]`.where(`[~condition]`)` returns a `query` with the following characteristics:
+
+* Its value type is the same as [~q]'s
+* Its value mapper is identical to [~q]'s.
+* Its output consists of all the records that [~q] would produce, for which [~condition] evaluates to `true`. Order is preserved.
+
+[endsect]

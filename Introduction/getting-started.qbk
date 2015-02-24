@@ -1,0 +1,437 @@
+[chapter Getting Started
+    [quickbook 1.6]
+    [id getting_started]
+]
+
+In this chapter I shall guide you through the writing of a small but complete quince application. We'll do it all in one source file. So create =gettingstarted.cpp= in your text editor, and let's begin.
+
+[section Ahem]
+
+    #include <stdint.h>
+    #include <iostream>
+    #include <quince/quince.h>
+    #include <quince_postgresql/database.h>     // Delete this line if you don't use PostgreSQL
+    #include <quince_sqlite/database.h>         // Delete this line if you don't use sqlite
+
+    using namespace quince;
+
+    namespace cinemascope {
+
+[heading Remarks]
+`quince/quince.h` is an umbrella header that collects all the headers you'll ever need from the quince library.
+
+All the identifiers that quince defines are in namespace `quince`
+[footnote The [link class_mapper_detail exceptions to this rule] are, quite literally, not worth mentioning. They are identifiers that you never use in your code and I shall not use any of them in this document.]
+, so the `using` directive brings them all into scope. I acknowledge that `using` directives are dubious style, and in a real application it's better to have a specific `using` declaration for each quince identifier that you use a lot. I'm just keeping it brief for the tour.
+
+Namespaces for application code (e.g. `cinemascope`) are always in style, but when you use quince they become a matter of necessity. Definitions of mapped classes (such as we're about to write) do not work unless they are in some named namespace.
+
+[endsect]
+
+[section Defining Mapped Class Types]
+
+    struct point {
+        float x;
+        float y;
+    };
+    QUINCE_MAP_CLASS(point, (x)(y))
+
+    struct movie {
+        serial id;                  // primary key with automatically assigned values
+        std::string title;
+    };
+    QUINCE_MAP_CLASS(movie, (id)(title))
+
+    struct cinema {
+        serial id;                  // primary key with automatically assigned values
+        point location;
+    };
+    QUINCE_MAP_CLASS(cinema, (id)(location))
+
+    struct screen {
+        serial id;                  // primary key with automatically assigned values
+        serial cinema_id;           // foreign key to cinemas table
+        serial current_movie_id;    // foreign key to movies table
+    };
+    QUINCE_MAP_CLASS(screen, (id)(cinema_id)(current_movie_id))
+
+[heading Remarks]
+Each invocation of the macro `QUINCE_MAP_CLASS` generates all the meta-information quince will need, regarding one of our class types. (We've declared them with the keyword `struct`, but structs are classes as far as quince is concerned.) This meta-information is packaged into a class, known as the /mapper class/ for our class. So the first invocation of `QUINCE_MAP_CLASS` generates the definition of `point`'s mapper class, aka `class_mapper<point>`.
+
+It's called a mapper class because it tells quince how to /map/ a `point` to its representation as columns (to accompany an SQL statement), and how to map columns back to a `point` (when retrieving results from an SQL statement). In particular, it tells quince that, in order to map a `point` [~p] in any way, it must map the two floats [~p]`.x` and [~p]`.y`.
+
+As we shall see, there are variations in the way `point`s are represented in different contexts: the SQL column names can vary, the encoding of `float`s can vary. So different situations will call for different /mapper objects/ for `point`. But they will all be instances of the mapper class that we have just defined.
+
+We rarely mention mapper classes by name in application code, but there is something about them that we need to understand. `class_mapper<point>` has two public members ['also called `x` and `y`]. If [~cmp] is any `class_mapper<point>`, then, [~cmp]`.x` and [~cmp]`.y` refer to `float` mappers, which tell quince how to map a `point`'s `x` and `y` members respectively. So it's nearly true to say /the members of the mapper are the mappers of the members/
+[footnote Nearly true but not 100% true. In fact, the members of the mapper are /const references/ to the mappers of the members. This is for the sake of polymorphism. At this stage, nobody knows exactly what type the mappers of the members should be: there are different mapper classes for `float` on different backends, and we haven't yet said which backend we're using. Also there is the possibility of custom mappings. At run time, when quince constructs [~cmp], it will have that information, and it will build the appropriate mapper objects for [~cmp]`.x` and [~cmp]`.y` to refer to. But at compile time, all that is known is that they refer to ['some mapper of `float`] -- which is an abstract type (`abstract_mapper<float>`, in fact).
+]
+.
+
+Following the same pattern, if [~cmc] is a `class_mapper<cinema>`, then [~cmc]`.id` and [~cmc]`.location` refer to a `serial` mapper and a `point` mapper respectively.
+[footnote Readers of the previous footnote will be sensitive to a subtle difference in this case. We /do/ know, at compile-time, the exact type of [~cmc]`.location`: it's a `class_mapper<point>`, and that type is already fully defined. So quince does not need to use polymorphism in this case, and in fact it chooses not to. This subtlety affects what you can write in application code. E.g. if your code gets hold of a reference to [~cmc] (and we shall soon see how that can happen), then the expression [~cmc]`.location.x` is well-formed, because the compiler can see the type of [~cmc]`.location`.
+]
+.
+
+Which brings us to `serial`. This is a C++ type, defined by quince, and it corresponds to whatever SQL type a database uses for primary keys with automatically assigned values. We use `serial` for items that are DBMS-generated (such as `movie::id`), and for items that will hold copies of those (such as `screen::current_movie_id`).
+
+[endsect]
+
+[section Creating the Database Object]
+
+Either:
+
+    const quince_postgresql::database db("localhost", "postgres", "postgres", "quincetest", "test");
+
+or:
+
+    const quince_sqlite::database db("quincetest");
+
+[heading Remarks]
+Either of the above definitions creates an object to represent the SQL database we are about to populate and query.
+
+Creating the `database` object doesn't create the SQL database. That is something you have to do outside of quince, e.g. by using the PgAdminIII GUI tool (for PostgreSQL) or the sqlite3.exe commandline tool (for sqlite). It may require special privileges.
+
+Creating the `database` object doesn't connect to the SQL database either. All it does is remember the parameters for later, when quince makes connections. (This happens automatically as needed.)
+
+We'll go through all the constructor arguments (including those not used here) in [link quince_postgresql.constructor detail] [link quince_sqlite.constructor later], but here are some things you might need to change straight away to suit your environment:
+
+For the `quince_postgresql::database` constructor:
+
+* `localhost` is the hostname of the machine running the DBMS.
+* The two occurrences of `postgres` are, in order, the user name and password to give the server.
+* `quincetest` is the name of the database that we'll be connecting to.
+* `test` is the name of the default schema we'll be using. For the purposes of this chapter, that's the schema where all our tables will be created.
+* If you need to specify a non-default TCP port to connect to, then that should be a string of decimal digits, passed as a sixth argument.
+
+For the `quince_sqlite::database` constructor:
+
+* `quincetest` is the name of the database to use, which for sqlite is the name of the database file.
+
+All the string arguments to either database constructor are interpreted as UTF-8.
+
+Now that we have a database object, the rest of our program will not mention PostgreSQL or sqlite. All our API calls will be to quince itself, not to the backend libraries.
+
+[endsect]
+
+[section Creating the Table Objects]
+
+    serial_table<movie> movies(db, "movies", &movie::id);
+    serial_table<cinema> cinemas(db, "cinemas", &cinema::id);
+    serial_table<screen> screens(db, "screens", &screen::id);
+
+[heading Remarks]
+These definitions create four objects representing tables. The actual SQL tables aren't being created yet. In fact these constructors don't communicate with the DBMS at all; they just collect details for later.
+
+The template parameter (e.g. `movie`) gives the table's /value type/. This is the C++ type that each complete row of the table represents.
+
+The three constructor arguments are:
+
+* The database on which the table will reside. (Either brand of database is acceptable; what we pass to the constructor is an abstract interface that they each implement.)
+* The table's SQL name.
+* The primary key within the value type (given in C++ style as a pointer-to-data-member).
+
+Every table has a /value mapper/, which tells quince exactly how the table's value type should be represented in this particular table. The table constructor builds this, using predefined mapper classes for `float`, `std::string` etc. that are appropriate to the given database.
+
+In this example we're constructing `serial_table`s rather than `table`s. I use the noun ["table], in normal font, for both, but `serial_table`s and `table`s differ from each other as follows:
+
+* In a `serial_table`, a value is automatically assigned to the primary key whenever a record is inserted (so it must be a `serial`).
+* In a `table`, the primary key must be present in a record before it is inserted, and then it is copied into the table like any other member (regardless of whether it is a `serial` or not).
+
+Our code uses the simplest form of the constructor, which is often all you need, but other forms are available also.
+
+PostgreSQL only: When we constructed `db`, we specified that `test` is the default schema. So when we create tables without mentioning a schema (as we do here), they go into the schema `test` -- with quince creating it if necessary.
+
+[endsect]
+
+[section Opening the Tables]
+
+    void test()
+    {
+        screens.specify_foreign(screens->cinema_id, cinemas);
+        screens.specify_foreign(screens->current_movie_id, movies);
+
+        movies.open();
+        cinemas.open();
+        screens.open();
+
+[heading Remarks]
+Let's start with the `open()` calls, and remember that, for each table, quince has already built a value mapper, which tells it how the table's value type should be represented, all the way down to columns. Using that information, each `open()` call does one of two things:
+
+* If the SQL table does not already exist, `open()` creates it, with the columns that it should have.
+* If the SQL table already exists, then `open()` checks that its columns match those that it should have, and throws if they don't.
+
+So the first run of the program will create the SQL tables, and subsequent runs will check that they're still in good shape.
+
+The last thing `open()` does (assuming it hasn't thrown) is to mark the table object as being in the open state. That is a precondition for all subsequent quince operations that modify or inspect the table's data, i.e. anything that assumes the columns are what they should be.
+
+Now let's move up the page to the `specify_foreign()` calls. These give quince instructions in advance. E.g. the first one says: ["If, in a forthcoming invocation of `screens.open()`, you find yourself creating the SQL table, then please create it with a foreign key constraint that ties its `cinema_id` to the primary keys in the `cinemas` table.] Consequently, in the first run of our program, `screens.open()` will create foreign key constraints as it creates the table.
+
+(That is the simplest form of `specify_foreign()`, for the common case where the foreign key is tied to some table's primary key. There are variations to cover other cases.)
+
+Perhaps the most valuable thing to notice about the two `specify_foreign` lines is their use of `operator->()`, with a table on the left-hand side. It returns a pointer to the table's value mapper. In the case of `screens->`[~...], that's the mapper that knows how to map a `screen` when it occurs in the `screens` table.
+
+What, then, is `screens->cinema_id`? Obviously it's a member of the mapper just described. Now remembering our mantra that /the members of the mapper are the mappers of the members/, it follows that `screens->cinema_id` is the mapper that tells quince how to map `screen::cinema_id`, when it occurs in the `screens` table; and likewise `screens->current_movie_id` is the mapper that tells quince how to map `screen::current_movie_id` when it occurs in the `screens` table.
+
+But wait: why are we talking about mappers? In the context of `specify_foreign()`, no data is being converted from C++ types to columns or /vice versa/. What's the mapping angle?
+
+The truth is that mappers are the all-purpose go-to object whenever we want to talk to quince about metadata. Mappers are to quince what column names are to SQL. This is something we shall see over and over.
+
+[endsect]
+
+[section Clearing the Tables]
+```
+``\ ``
+    screens.remove();
+    movies.remove();
+    cinemas.remove();
+```
+[heading Remarks]
+These calls remove all the entries in the tables. On the first run, when the tables have just been created, that's a nonevent. On subsequent runs it brings us back to a clean slate.
+
+You might find the notation unintuitive. If you prefer, you can write `movies.where(true).remove()` etc., to remind your readers that you are removing records that match a (vacuous) criterion, rather than the table itself.
+
+As we go along, however, we'll grow accustomed to the idea that a table is a kind of a query
+[footnote
+In the course of writing the current program, we shall (a) build on a table just like we build on any other query (i.e. to make a bigger query), and (b) use a table's value mapper, just like we use any other query's value mapper. To complete the point, here's some code that (c) "executes" a table, just like executing any other query:
+[br] [br]
+[^for (const movie &m: movies)  std::cout << "Movie #" << m.id << " is: " << m.title << std::end; ]
+[br] [br]
+Just about the only thing you /can't/ do with a table is call it a `query`. That is not its type. But I use the noun ["query], in normal font, to refer to anything we can use like a `query`, including a table.
+]
+, and then intuitions might shift. Appending `.where(true)` to a table is like appending `.where(true)` to any other query: mere noise.
+
+[endsect]
+
+[section Populating the Tables]
+```
+``\ ``
+    const serial fried_green_quinces_id         = movies.insert({serial(), "Fried Green Quinces"});
+    const serial a_clockwork_quince_id          = movies.insert({serial(), "A Clockwork Quince"});
+    const serial quince_of_tides_id             = movies.insert({serial(), "Quince of Tides"});
+    const serial bridge_on_the_river_quince_id  = movies.insert({serial(), "Bridge on the River Quince"});
+    const serial les_inquincibles_id            = movies.insert({serial(), "Les Inquincibles"});
+    const serial the_quince_and_the_dead_id     = movies.insert({serial(), "The Quince and the Dead"});
+    const serial conquincetador_id              = movies.insert({serial(), "Conquincetador"});
+    const serial queen_quince_id                = movies.insert({serial(), "Queen Quince"});
+    const serial frankfurt_quincidences_id      = movies.insert({serial(), "Frankfurt Quincidences"});
+
+    const point my_place{10.0f, 20.0f};
+
+    const serial around_the_corner  = cinemas.insert({serial(), {11.0f, 19.0f}});
+    const serial down_the_street    = cinemas.insert({serial(), {2.0f, 19.0f}});
+    const serial out_of_town        = cinemas.insert({serial(), {2.0f, 1000.0f }});
+
+    screens.insert({serial(), around_the_corner, les_inquincibles_id});
+    screens.insert({serial(), around_the_corner, quince_of_tides_id});
+    screens.insert({serial(), around_the_corner, quince_of_tides_id});
+    screens.insert({serial(), around_the_corner, queen_quince_id});
+    screens.insert({serial(), around_the_corner, a_clockwork_quince_id});
+    screens.insert({serial(), around_the_corner, frankfurt_quincidences_id});
+    screens.insert({serial(), around_the_corner, frankfurt_quincidences_id});
+    screens.insert({serial(), down_the_street, les_inquincibles_id});
+    screens.insert({serial(), down_the_street, les_inquincibles_id});
+    screens.insert({serial(), down_the_street, conquincetador_id});
+    screens.insert({serial(), down_the_street, quince_of_tides_id});
+    screens.insert({serial(), down_the_street, bridge_on_the_river_quince_id});
+    screens.insert({serial(), out_of_town, les_inquincibles_id});
+    screens.insert({serial(), out_of_town, bridge_on_the_river_quince_id});
+    screens.insert({serial(), out_of_town, fried_green_quinces_id});
+    screens.insert({serial(), out_of_town, fried_green_quinces_id});
+    screens.insert({serial(), out_of_town, the_quince_and_the_dead_id});
+```
+[heading Remarks]
+
+In each of these calls to `insert()` we pass a record, i.e. a `movie`, `cinema`, or `screen`. (In case you haven't seen it before, `{`...`}` is C++11 syntax for constructing an object from a sequence of member values.) Then `insert()` converts the record into columns, using the table's value mapper, and executes the SQL command to insert it into the table.
+
+Because these are `serial_table`s, the DBMS automatically assigns values to the key. So that's one part of the record that we don't need to to set -- except that the `{`...`}` syntax demands a value for every member, and so we give it a default-constructed `serial`. You could write your own constructors for `movie` etc. and avoid that boilerplate.
+
+Each `insert()` call returns the newly generated key. (It also saves another copy, in its proper place in the record you pass in, if you pass the record via non-const ref; but we aren't doing that here.) In the first twelve cases we capture the returned key in a local variable, which we use lower down the page. In the other cases we don't need the returned key and we throw it away.
+
+[endsect]
+
+[section Building Expressions for Server-Side Evaluation]
+```
+``\ ``
+    const float max_radius = 100.0f;
+
+    const exprn_mapper<float> x_distance = cinemas->location.x - my_place.x;
+    const exprn_mapper<float> y_distance = cinemas->location.y - my_place.y;
+
+    const predicate within_radius =
+        x_distance*x_distance + y_distance*y_distance <= max_radius*max_radius;
+```
+[heading Remarks]
+
+Here we construct three `exprn_mapper` objects: `x_distance`, `y_distance`, and `within_radius`. (Yes, `within_radius` is an `exprn_mapper`. The type `predicate` is a typedef of `exprn_mapper<bool>`.)
+
+An `exprn_mapper` is an object that quince is able to translate into an SQL /expression/. As we shall see, the variety of contexts in which you can use `exprn_mapper`s in quince is about the same as the variety of contexts in which you use SQL expressions in SQL. And the purpose is the same: to get computations done on the DBMS's side.
+
+`exprn_mapper`'s template parameter specifies its /return type/. That is the C++ equivalent of the SQL expression's return type, which has to be a single column. So you can have an `exprn_mapper<float>`, but you can't have an `exprn_mapper<point>`.
+
+I've explained the ["`exprn`] in ["`exprn_mapper`], but why [" ['`mapper`]]? That's because another job of an `exprn_mapper` is to convert computed results from a column format to a C++ type (although never the reverse). E.g. if quince were to execute the query `cinemas.select(x_distance)`, it would rely on `x_distance` to convert the results.
+
+`exprn_mapper`s are built from:
+
+* ordinary mappers,
+* C++ values, and
+* other `exprn_mapper`s
+
+-- by applying several devices, some of which we have already seen. The code above uses quince's overloads of `-`, `*`, and `<=`, which correspond to the obvious SQL operators. Earlier we [link local_hit_titles used quince's `upper()` function], which corresponds to SQL's `UPPER()` function, and we [link score used quince's `count_all` function within a scalar subquery] (a somewhat advanced topic that I [link expressions.scalar take up later]).
+
+We also [link square defined a C++ function of our own], `square()`, which we then called (just like `upper()` etc.) in the context of building larger `exprn_mapper`s. That wasn't a quince feature /per se/; it was just a C++ function call; but in its context it nicely suited the conceit of writing server-side expressions in C++ syntax. It was as though the DBMS had acquired a `SQUARE()` function, on par with `UPPER()`.)
+
+[endsect]
+
+[section Buliding a Query]
+```
+``\ ``
+    const query<cinema> local_cinemas =
+        cinemas
+        .where(within_radius);
+```
+
+[heading Remarks]
+
+`local_cinemas` is a query that filters the records in `cinemas` by the predicate `within_radius`. Its output is all the records in `cinemas` for which the predicate `within_radius` evaluates to true.
+
+Here are two things to know about queries:
+
+* They have a value type (like `table`s do), and it is a template parameter to the `query` class; e.g. `query<cinema>` has the value type `cinema`.
+* They have a value mapper (like `table`s do), and their `operator->()` returns a pointer to it, just as a `table`'s `operator->()` does.
+
+In the case of `local_cinemas`, its value mapper is identical to `cinemas`'s value mapper, in the strictest sense of ["identical]: `cinemas.operator->() == local_cinemas.operator->()`. That is because `local_cinemas` was created by `where()`, which has the following rules:
+
+* [~Q]`.where(`...`)`'s value type is identical to [~Q]'s.
+* [~Q]`.where(`...`)`'s value mapper is identical to [~Q]'s.
+
+(which, by the way, are also true of [~Q]`.distinct(`...`)`, [~Q]`.distinct_on(`...`)`, [~Q]`.except(`...`)`, [~Q]`.except_all(`...`)`, [~Q]`.intersect(`...`)`, [~Q]`.intersect_all(`...`)`, [~Q]`.limit(`...`)`, [~Q]`.order(`...`)`, [~Q]`.skip(`...`)`, [~Q]`.union_(`...`)`, and [~Q]`.union_all(`...`)`. On the other hand there are somewhat different rules for `select()` and functions in the `join()` family.)
+
+And here are two more things to know about queries (and tables also):
+
+* They have a copy constructor, but not a default constructor or assignment.
+* When you build on one to make another (as we built on `cinemas` to make `local_cinemas`), the first one is unchanged, and still usable, e.g. you could build on it again to make yet another query.
+
+[endsect]
+
+[section Building Further]
+```
+``\ ``
+    const query<screen> local_screens =
+        local_cinemas
+        .jump(screens, screens->cinema_id == local_cinemas->id);
+```
+
+[heading Remarks]
+
+This statement builds on the query `local_cinemas`, in much the same way that the previous statement built on the table `cinemas`.
+
+The effect of `jump()` can be understood as follows: imagine we took the output of `local_cinemas`, and replaced each `cinema` [~c] by all the records in `screens` whose `cinema_id` matches [~c]'s `id`. That would give us the output of the query we just built. All those records are of type `screen`, so the new query is a `query<screen>`.
+
+Notice that this operation would work just as well if `local_cinemas` were replaced by some other query with the same output as `local_cinemas`, or even by a simple table that contained all the records that `local_cinemas` produces. And that is generally the way: when I build upon one query to make another, I try not to depend on any details of how the first query was built. That makes the code easy to refactor later.
+
+We learnt in the previous section that `local_cinemas`'s value mapper is identical to `cinemas`'s value mapper. So I could have written `cinemas->`[~...] instead of `local_cinemas->`[~...]. It would have worked the same, and it would have saved six keystrokes, but I went the other way. Why? To avoid dependence on the detail of how `local_cinemas` was made. If some future round of refactoring eliminates the `cinemas` table, and builds `local_cinemas` in some different way, the code here will still compile and run.
+
+I'm expressing a stylistic preference, no more, and it may not be very important -- except insofar is it helps to explain code examples in this document that would be puzzling if you didn't know.
+
+[endsect]
+
+[section /Ceci n'est pas une pipe/]
+```
+``\ ``
+    const query<std::string> titles_playing_nearby =
+        local_screens
+        .jump(movies, local_screens->current_movie_id == movies->id)
+        .select(movies->title)
+        .distinct();
+```
+
+[heading Remarks]
+
+Here we take a query (`local_screens`) and call one of its methods (`jump()`), to produce another query; then call one of /its/ methods to produce another query; and one of /its/ methods to produce the query `titles_playing_nearby`.
+
+It is tempting to read such code as a pipeline, i.e. an instruction to perform the following tasks, either sequentially or in parallel:
+
+* Run the `local_screens` query. That produces a stream of `screen` records.
+* Replace each of those `screen` records by all the records in `movies` whose `id` matches the `screen` record's `current_movie_id`. That produces a stream of `movie` records.
+* Replace each of those `movie` records by its title. That produces a stream of `std::string`s.
+* Sort those `std::string`s and remove duplicates. That produces a shorter stream of `std::string`s.
+
+I find pipeline thinking very useful, and in fact the methods `where()`, `jump()` etc. have deliberately been made [link queries.compositionality compositional], so that pipeline thinking works when you chain them together. Still I must sound a small note of caution: I have no idea whether such pipelines are real. I don't know whether all the postulated streams and processing stages actually exist. I know that quince produces SQL queries whose output is /as if/ produced by a real pipeline, but queries are executed by the DBMS, and it can use any strategy it likes to get to that output.
+
+[endsect]
+
+[section Executing the Query]
+```
+``\ ``
+    for (const std::string &title: titles_playing_nearby)
+        std::cout << title << std::endl;
+```
+
+[heading Remarks]
+
+This is a C++11 `for` loop. In case you haven't seen one of those before, it's as though we had written the following (and feel free to enter this code instead, if you prefer it):
+```
+``\ ``
+    for (query<std::string>::const_iterator i = titles_playing_nearby.begin();
+         i != titles_playing_nearby.end();
+         ++i) {
+        const std::string &title = *i;
+        std::cout << title << std::endl;
+    }
+```
+
+Either way, what the code demonstrates, implicitly in one case and explicitly in the other, is that a query has:
+
+* a `begin()` method.
+* a `const_iterator` type, with prefix operators `*` and `++`.
+* an `end()` method.
+
+The `begin()` method does most of the work. It translates the query into SQL, maps any accompanying data into columns, and sends all of that to the DBMS, which starts to execute it. `begin()` also creates a `const_iterator` object, which is the data structure that receives rows of query output as they arrive. Then `begin()` waits for the first row (or, for PostgreSQL, the first batch or rows); it converts the first row to the query's value type (`std::string` in our case); and it saves the converted item inside the `const_iterator`. Finally it returns the `const_iterator`.
+[footnote All of these steps rely heavily on the backend library, but our application code isn't mentioning that. Quince knows which tables the query was built from; it knows which database object we passed to the table constructor each time, and it knows the backend-specific type of that database object; so we don't need to tell it again.
+]
+
+`const_iterator`'s operator `*` simply returns a const reference to the converted item, which the `const_iterator` already holds.
+
+`const_iterator`'s operator `++` gets the next row of output (either by finding it in the buffer or by waiting for the the DBMS to produce some more), converts that row to the value type, and saves the converted item inside the `const_iterator`, replacing the previously saved value.
+
+Eventually a call to `++` will find that there is no more output. Then it will put the `const_iterator` into an "end" state. (If there had been no output at at all, `begin()` would have created it in that state.) This is the state where comparisons to `end()` return `true` -- or you can test for it directly by calling `i.is_end()`.
+
+The `end()` method itself does very little. It returns a special `const_iterator`, with the property that [~i]`==end()` reduces to [~i]`.is_end()` for any `const_iterator` [~i].
+
+Of course the reason quince defines `end()` is for interoperability with the C++11 `for` loop, and with other code that is geared towards STL containers. For the same reason, quince defines an `iterator` type (a typedef of `const_iterator`), and within the `const_iterator` class you will find such things as a postfix operator `++` (identical to the prefix `++`, since they both return `void`), and types `pointer` and `reference`, among others.
+
+The prize for all this STL fancy dress is that our iterators earn the title of [@http://en.cppreference.com/w/cpp/concept/InputIterator /input iterators/], which carries certain privileges. E.g. any standards-compliant STL implementation must allow:
+```
+``\ ``
+    const std::vector<std::string> all_of_them(titles_playing_nearby.begin(), titles_playing_nearby.end());
+```
+which populates a `std::vector` by running our query and collecting all the results. (Don't expect to `std::sort()` a query however: that function requires /random access iterators/, not mere input iterators.)
+
+Calling `begin()` is the most general way to execute a query, but it doesn't suit every situation. Sometimes you want to retrieve a single record without all the buffering apparatus. Sometimes you want to execute a command that is not a query, and does not produce even a single record. As we [link queries.executing shall] [link tables.manipulation see], there is more than one way to execute SQL. You don't have to pay for machinery you don't need.
+
+[endsect]
+
+[section The End]
+
+    } // test()
+
+    } // namespace cinemascope
+
+    int main()
+    {
+        cinemascope::test();
+        return 0;
+    }
+
+[heading Expected output]
+
+    Quince of Tides
+    Bridge on the River Quince
+    A Clockwork Quince
+    Les Inquincibles
+    Queen Quince
+    Conquincetador
+    Frankfurt Quincidences
+
+[endsect]
+

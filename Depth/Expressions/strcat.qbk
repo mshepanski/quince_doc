@@ -1,0 +1,12 @@
+[section:strcat String Concatenation]
+
+Quince defines an overload of the infix binary operator `+`, which builds and returns an `exprn_mapper<std::string>` that represents string concatenation. It's a wrapper for the SQL operator =||=.
+
+This overload applies when:
+
+* one of the operands is an `abstract_mapper<std::string>`, and
+* the other operand is an `abstract_mapper<std::string>` or a `std::string` or a `const char *`,
+
+The returned `exprn_mapper<std::string>` represents a server-side expression that, when executed, evaluates the subexpressions represented by the operands, and concatenates their (string) results.
+
+[endsect]

@@ -1,0 +1,80 @@
+[section `boost::optional<`...`>`]
+
+[heading Its mapper class: `optional_mapper<`...`>`]
+
+If [~T] is any mapped type, then `boost::optional<`[~T]`>` is a mapped type. Furthermore, it is statically mapped: its mapper class is always `optional_mapper<`[~T]`>`, and the compiler knows that when it is compiling your code.
+
+In addition to mapping `boost::optional<`[~T]`>`s to and from column formats, `optional_mapper<`[~T]`>` provides an `is_initialized()` method, operators `->` and `*`, and a `get_value_or()` method, which act as analogs of familiar features `boost::optional<`[~T]`>`.
+
+If [~omt] is an instance of `optional_mapper<`[~T]`>`, then:
+
+* [~omt]`.is_initialized()` returns a `predicate` (aka `exprn_mapper<bool>`), which evaluates to true on the server whenever [~omt] evaluates to an ["initialized] optional, i.e. whenever [~omt] does /not/ evaluate to the server-side equivalent of `boost::none`.
+* [~omt]`.operator*()` returns a const reference to a mapper for type [~T]. This is the mapper that maps the `optional`'s content. The exact return type of [~omt]`.operator*()` depends on [~T]: if [~T] is a polymorphically mapped type, it is `abstract_mapper<`[~T]`>`; otherwise it is [~T]'s (concrete) mapper class.
+* [~omt]`.operator->()` returns a const pointer to a mapper for type [~T]: the same mapper that [~omt]`.operator*()` returns a const reference to.
+* If [~expr] is either an `abstract_mapper<`[~T]`>` or a value of type [~T], then [~omt]`.get_value_or(`[~expr]`)` is an `exprn_mapper<`[~T]`>` that evaluates, on the server side, to `*`[^omt] when [~omt]`.is_initialized()` is true, and to [~expr] otherwise.
+
+Just as it is a run-time error to execute a normal C++ expression that applies `*` or `->` to an uninitialized `boost::optional`, it is a run-time error to execute a server-side expression that applies `*` or `->` to data that represents an uninitialized `boost::optional`.
+
+[heading Example]
+
+    struct movie_info {
+        std::string title;
+        boost::optional<std::string> producer;
+        std::string director;
+    };
+    QUINCE_MAP_CLASS(movie_info, (title)(producer)(director))
+
+    extern table<movie_info> movie_infos;
+
+    const query<movie_info> those_with_producers =
+        movie_infos
+        .where(movie_infos->producer.is_initialized());
+
+    const query<std::string> producers =
+        those_with_producers
+        .select(* those_with_producers->producer);
+
+    const query<std::string> padded_producers =
+        movie_infos
+        .select(movie_infos->producer.get_value_or("<unknown>"));
+
+    const query<std::string> top_credits =
+        movie_infos
+        .select(movie_infos->producer.get_value_or(movie_infos->director));
+
+[#optional_order]
+[heading Order]
+
+Optionals cannot currently be compared on the server side with the relational operators, and attempts to do so are caught at compile time.
+
+Optionals can, however, be sorted on the server side with `order()`. Then `boost::none` compares equal to `boost::none` and less than anything else, and in other cases the contents of the two optionals are compared.
+
+[#optionals_representation]
+[heading Representation]
+
+If it weren't for `boost::optional`s, every C++ type would be mapped to columns with =NOT NULL= constraints.
+
+Most of the time, `optional_mapper<`[~T]`>` simply waives this rule: it maps `boost::optional<`[~T]`>` to the same set of columns as the representation of [~T], sans their =NOT NULL= constraints. Then an uninitialized `boost::optional<`[~T]`>` is represented by all columns being =NULL=.
+
+That approach breaks down occasionally. Consider `boost::optional<boost::optional<float>>`. It has two distinct null-like values:
+
+    const boost::optional<float> no_float;
+    assert(! no_float);
+
+    const boost::optional<boost::optional<float>> nothing1;
+    const boost::optional<boost::optional<float>> nothing2(no_float);
+
+    assert(! nothing1);
+    assert(nothing2);
+    assert(nothing1 != nothing2);
+
+The simple, efficient strategy of putting [^NULL]s for `none`s cannot be applied to `boost::optional<boost::optional<float>>`, because a =NULL= column would be ambiguous between `nothing1` and `nothing2`.
+
+So `optional_mapper<`[~T]`>` distinguishes two cases:
+
+* If [~T]'s representation does not allow all [^NULL]s, then we stick with the original plan: `boost::optional<`[~T]`>`'s representation is the same as [~T]'s, except it does allow [^NULL]s. Then `boost::none` is represented by all columns =NULL=. Call this the /optimized representation/. It applies almost always.
+* If [~T]'s representation allows all [^NULL]s, then `boost::optional<`[~T]`>`'s representation consists of a representation of a [~T], plus an extra column representing a `bool`. Then `boost::none` is represented by setting the boolean column false and the rest to =NULL=, and initialized values are represented by setting the boolean true and the rest to the content. Call this the /unoptimized representation/.
+
+For example, `float` cannot be represented as =NULL=, so `boost::optional<float>` gets the optimized representation (one column). Thus `boost::optional<float>` /can/ be represented as a =NULL=; so `boost::optional<boost::optional<float>>` gets the unoptimized representation (two columns). But that representation incudes a flag, which is never =NULL=. Therefore `boost::optional<boost::optional<boost::optional<float>>>` gets the optimized representation (still only two columns). And so on.
+
+[endsect]

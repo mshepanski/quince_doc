@@ -1,0 +1,79 @@
+[section:predefined Predefined Concrete Mapper Class Templates]
+
+[#direct_mapper]
+[heading `direct_mapper<`[~T]`>`]
+
+`direct_mapper<`[~T]`>` is an implementation of `abstract_mapper<`[~T]`>` that represents [~T] by calling the backend library's [#basic_conversions] /basic conversions/ for [~T], and nothing else: it does not add any data transformation of its own.
+
+Each backend library provides a fixed set of basic conversions, which convert in both directions between C++ data types and the DBMS's column-oriented formats. They do not use mappers because they are at a level below mappers. They are only available for a few C++ types, and it is a different few for each backend. The details are [link quince_postgresql.basic here] and [link quince_sqlite.basic here], but I can tell you two things now:
+
+* They are always types that can be represented in single columns.
+
+* Among numeric types, they are ones whose conversion requires nothing more than byte ordering.
+
+`direct_mapper<`[~T]`>` does not suffer from any of the same tradeoffs as other mapper classes for numeric types, so it is the mapper of choice in cases where it is available, i.e. on a database whose backend library provides basic conversions for [~T].
+
+[heading `numeric_cast_mapper<`[~T]`,` [~OtherMapper]`>`]
+
+`numeric_cast_mapper<`[~T]`,` [~OtherMapper]`>` is an implementation of `abstract_mapper<`[~T]`>` that represents [~T] by:
+
+* delegating to [~OtherMapper], and
+* using `boost::numeric_cast`s to transform the data to or from [~OtherMapper]'s mapped type.
+
+E.g. the following mapper class is one possible implementation of `abstract_mapper<uint16_t>`
+[footnote It happens to be quince_postgresql's default implementation.]
+ (assuming that `direct_mapper<int32_t>` is available
+[footnote It is, on quince_postgresql.] 
+):
+
+    numeric_cast_mapper<uint16_t, direct_mapper<int32_t>>
+
+To convert a `uint16_t` to a column, this mapper calls `boost::numeric_cast<int32_t>()` and then delegates to `direct_mapper<int32_t>`. To convert a column to `uint16_t`, it delegates to `direct_mapper<int32_t>` and then calls `boost::numeric_cast<uint16_t>()`.
+
+When `boost::numeric_cast` fails, it throws a `boost::bad_numeric_conversion`, which quince does not catch.
+
+An `int32_t` can absorb any value from a `uint16_t`, so the cast that this mapper makes during outbound conversions will always succeed. Inbound conversions, on the other hand, can go less well. If a certain record had a `uint16_t` field that was near its maximum value, and you used `update()` with a server-side expression to triple it, then the next attempt to read it back would throw a  `boost::bad_numeric_conversion`.
+
+I'm not sure whether to count that as a disadvantage of `numeric_cast_mapper`. Perhaps `boost::bad_numeric_conversion` is as good a way as any to respond to arithmetic overflow.
+
+The clear disadvantage of `numeric_cast_mapper` is that, in all the cases where it is useful, it has a cost in space; e.g. using 32 bits to hold 16 bits' worth of information.
+
+[heading `reinterpret_cast_mapper<`[~T]`,` [~OtherMapper]`>`]
+
+`reinterpret_cast_mapper<`[~T]`,` [~OtherMapper]`>` is an implementation of `abstract_mapper<`[~T]`>` that represents [~T] by:
+
+* delegating to [~OtherMapper], and
+* using `reinterpret_cast`s to transform the data to/from [~OtherMapper]'s mapped type.
+
+E.g. here is another possible implementation of `abstract_mapper<uint16_t>` (this time assuming that `direct_mapper<int16_t>` is available
+[footnote It is, on quince_postgresql.] 
+):
+
+    reinterpret_cast_mapper<uint16_t, direct_mapper<int16_t>>
+
+To convert a `uint16_t` to a column, this mapper invokes `reinterpret_cast<int16_t>()` and then delegates to `direct_mapper<int16_t>`. To convert a column to `uint16_t`, it delegates to `direct_mapper<int16_t>` and then calls `reinterpret_cast<uint16_t>()`.
+
+`reinterpret_cast_mapper` doesn't waste any space. It has the following disadvantages instead:
+
+* Server-side comparisons and sorts produce results that are inconsistent with client-side comparisons and sorts. E.g. 32767 < 32769; but the server-side representation of 32767 (i.e. 32767) is /greater/ than the server-side representation of 32769 (i.e. -32767).
+
+* Server-side arithmetic produces results that are inconsistent with client-side arithmetic. E.g. 32767 * 2 = 65534, but the server-side representation of 32767 (i.e. 32767), multiplied by the server-side representative of 2 (i.e. 2), equals -4, which is /not/ the server-side representation of 65534 (i.e. -2).
+
+* Negative client-side values are mapped to server-side values that look wrong, if you view them with non-quince tools that don't use the mapping.
+
+[heading `reinterpret_cast_mapper<`[~T]`,` [~OtherMapper]`,` [~Offset]`>`]
+
+This variant of `reinterpret_cast_mapper` takes a constant offset of type [~T] as a third template parameter. It behaves like the other form of `reinterpret_cast_mapper` except that:
+
+* In outbound conversions, it adds the offset to the C++ value before it does anything else.
+* In inbound conversions, it subtracts the offset from the C++ value after it has done everything else.
+
+E.g. here is another possible implementation of `abstract_mapper<uint16_t>` (again assuming that `direct_mapper<int16_t>` is available):
+
+    reinterpret_cast_mapper<uint16_t, direct_mapper<in16_t>, 0x8000>
+
+By choosing the offset carefully, we solve the problem of comparisons and sorts.
+
+On the other hand we still have the problem of server-side arithmetic producing wrong results. And the problem of server-side values looking wrong just got extended to all values, not just negative ones.
+
+[endsect]

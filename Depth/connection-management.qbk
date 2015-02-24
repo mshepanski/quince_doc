@@ -1,0 +1,44 @@
+[chapter Connection Management
+    [quickbook 1.6]
+]
+
+There are no public quince functions to open or close connections to the database. Quince does that automatically.
+
+This chapter describes quince's policies for connection management, partly in case you're curious, partly in case you want to know whether it's doing something inefficient, and partly because, if you're using a remote PostgreSQL server over an unreliable network (aka any network), you may need to write code that responds when things break.
+
+[heading Laws]
+
+We begin with five laws that quince always upholds:
+
+# A thread only uses a connection if it /holds/ that connection.
+# No thread holds more than one connection to the same database at the same time.
+# No two threads hold the same connection at the same time.
+# When a thread uses a connection to open a transaction, it holds that connection until the transaction is finished.
+# When a thread uses a connection to `begin()` a query, it holds that connection as long as it holds the iterator that `begin()` returned.
+
+Taken together, these laws are a bit like saying ["one connection per database per thread], but not quite.
+
+Here's the difference. Suppose a certain thread is communicating with database /D/ via connection /C/. As long as it holds at least one transaction and/or at least iterator pertaining to /D/, it will keep using connection /C/. But if it ever ["lets go] completely, i.e. if it reaches a stage where it has no transactions or iterators for /D/, then, under these laws, there is no guarantee that it will use /C/ for any subsequent communication with /D/.
+
+[heading Pooling]
+
+When a thread ["lets go] in this sense, it no longer holds the connection, but quince keeps the connection open and saves it in a pool of open connections. The pool is specific to one database but not specific to any thread. Whenever a thread needs a connection, it takes one from the appropriate database-specific pool, if it can. It only establishes a new connection if the pool is dry.
+
+So, in a single-threaded application, there can only be one connection to a given database. It is established for the first access, and over time it may dip in and out of the pool, but (apart from breakages) there will never be need of a second one.
+
+In a multi-threaded application, if two or more threads have communicated with a database, and have since let go, and are now starting to communicate with it again, then each thread might get the connection it used before, or it might get a connection that another thread used before -- it doesn't matter which.
+
+[#breakage]
+[heading Breakage (PostgreSQL only)]
+
+When you use PostgreSQL, the DBMS can be running on a remote host, and the physical link can fail, or any number of other factors can cause established connections to stop working. Then quince throws a `broken_connection_exception`.
+
+`broken_connection_exception` should not be confused with `failed_connection_exception`. The latter indicates that a connection could not be established; the former indicates that a connection that once was established has now stopped working. A `failed_connection_exception` can be due to a broken network link etc., but it has many other possible causes, e.g. the database you want doesn't exist, or you're not authorized -- even on sqlite.
+
+If you want to catch `broken_connection_exception`, the `catch` should be outside the scope of any `transaction` or query iterator. Then the application can decide how to respond, e.g. retry immediately, or retry after a delay, or report an error and quit. (If it retries, then be prepared for `failed_connection_exception`.)
+
+Quince responds also, as follows:
+
+* The broken connection is closed, and not returned to the pool.
+* Any pooled connections to the same database are closed and removed from the pool.
+* Any connections to the same database that are currently held by the application (which can only mean: held by other threads) will never be returned to the pool. At the time when they would have been returned to the pool, they will be closed instead.

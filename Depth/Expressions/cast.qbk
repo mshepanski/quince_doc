@@ -1,0 +1,9 @@
+[section:cast `cast<`...`>()`]
+
+Quince's `cast<`...`>()` function builds and returns an SQL expression that represents a server-side type conversion operation. It's a wrapper for the SQL keyword =CAST=.
+
+`cast<`[~T]`>(`[~arg]`)` is allowed when [~T] is a mapped type, and the target database's mapping (allowing for any [link custom.deployment.database per-database customizations]) for [~T] represents it as some single-column SQL type [~t]. Then `cast<`[~T]`>(`[~arg]`)` returns an `exprn_mapper<`[~T]`>` that, when executed, evaluates the subexpression that `arg` represents, and applies the SQL conversion `CAST(`...` AS `[~t]`)` to the result.
+
+Whether you say `cast<boost::optional<`[~foo]`>>(`[~arg]`)` or `cast<`[~foo]`>(`[~arg]`)` makes no difference to the SQL that is actually executed. The only difference is in the type of `exprn_mapper` you get back. If there is any possiblility that [~arg] could evaluate to an SQL =NULL=, then it is your responsibility to cast to some `boost::optional<`...`>`.
+
+[endsect]

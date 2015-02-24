@@ -1,0 +1,74 @@
+[chapter Expressions for Server-Side Execution
+    [quickbook 1.6]
+    [id expressions]
+]
+
+[section Server-Side Expressions in General]
+
+This chapter deals with one component of queries: the part that represents a /server-side expression/, i.e. an expression to be evaluated by the DBMS.
+
+The simplest of these components are either a value of some mapped type, e.g. 3.14f, or one of the mapper objects that were described in the previous chapter, e.g. `points->x`.
+
+The features described in this chapter let us build up from there. E.g. there is an infix `+`, which lets us build `3.14f + points->x`. Then we can build on what we have built, and so on.
+
+The simplest components come in a variety of C++ types, e.g. `3.14f` is of type `float`, `points->x` is of type `abstract_mapper<float>`; but the components we build will always have the type `exprn_mapper<`[~T]`>`, where [~T] is the expression's /result type/ -- i.e. the C++ equivalent of the SQL type to which the expression actually evaluates. So `3.14f + points->x` has the type `exprn_mapper<float>`.
+
+It would seem that, for any mapped type [~T], a wide range of C++ types can represent server-side expressions with result type [~T]:
+
+* There is [~T] itself.
+* If [~T] is a polymorphically mapped type (like `float`), then there is `abstract_mapper<`[~T]`>`.
+* If [~T] is a statically mapped type, then there is some `optional_mapper`, `tuple_mapper` or `class_mapper` class.
+* There is `exprn_mapper<`[~T]`>`.
+
+Will this make our lives difficult (or at least repetitive) when we try to write code that deals with ["any server-side expression with result type [~T]]?
+
+Fortunately we can shorten the list, by folding some of the cases into others. In the statically mapped case, the mapper class is always a subclass of `abstract_mapper<`[~T]`>`. And, for the sake of shortening the list further, quince defines `exprn_mapper<`[~T]`>` as a subclass of `abstract_mapper<`[~T]`>`. So the types we need to consider separately are two:
+
+* [~T]
+* `abstract_mapper<`[~T]`>`
+
+For example, if we want to write a function that takes as an argument ["any server-side expression with result type `uint16_t`], we need just two overloads:
+
+    query<oscar>
+    oscars_before(uint16_t cutoff) {
+        return oscars.where(oscars->year < cutoff);
+    }
+
+    query<oscar>
+    oscars_before(const abstract_mapper<uint16_t> &cutoff) {
+        return oscars.where(oscars->year < cutoff);
+    }
+
+But maybe we don't want even that much repeated code. Then we have alternatives.
+
+`exprn_mapper<`[~T]`>` supports implicit conversions from [~T] and from `abstract_mapper<`[~T]`>`. So we can take advantage of those:
+
+    query<oscar>
+    oscars_before(const exprn_mapper<uint16_t> &cutoff) {
+        return oscars.where(oscars->year < cutoff);
+    }
+
+Or we can use a template:
+
+    template<typename Arg>
+    query<oscar>
+    oscars_before(const Arg &cutoff) {
+        return oscars.where(oscars->year < cutoff);
+    }
+
+which leaves the type checking in the hands of quince's `<`.
+
+[endsect]
+
+[include arithmetic.qbk]
+[include strcat.qbk]
+[include cast.qbk]
+[include functions.qbk]
+[include relations.qbk]
+[include logic.qbk]
+[include exists.qbk]
+[include in.qbk]
+[include collective.qbk]
+[include scalar.qbk]
+[include choose.qbk]
+[include visibility.qbk]

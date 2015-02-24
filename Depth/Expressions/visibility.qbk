@@ -1,0 +1,107 @@
+[section Visibility]
+
+So far in this chapter, we have seen how to build well formed expressions for server-side execution. We've reached the point where we can build such an expression, and we can hold it in an `exprn_mapper` variable. But before we can execute it, we need to place it in some other context, e.g. a query, and that requires something else: compatibility with the context.
+
+Type compatibility is one necessary aspect (e.g. you can't use `points->x + 3.14f` in a context that requires a `predicate` or an `abstract_mapper<std::string>`), but type compatibility is not sufficient. For consider this: `points->x + 3.14f` is allowed here:
+
+    const query<float> x_plus_3_14 = points.select(points->x + 3.14f);
+
+but not here:
+
+    const query<float> nonsense = oscars.select(points->x + 3.14f);  // wrong
+
+To clarify what's at issue, let me introduce the term /visible/, used in this way: a /mapper/ is visible to an /expression/.
+
+In `points.select(points->x + 3.14f)`, the value mapper for the `points` table (aka `*points`) is visible to the expression `points->x + 3.14f`. That's due to a general rule that, for any query [~q] and server-side expression [~e], [~q]`.select(`[~e]`)` makes [~q]'s value mapper visible to [~e]. Still more generally, all of the quince constructs that enclose server-side expressions within non-expression contexts make some mappers visible to the expressions they enclose. The specific rules are documented along with the constructs: watch for the phrase ["will be visible to] in the chapters that follow.
+
+The rest of what you need to know about visibility is:
+
+* Whatever is visible to an expression is visible to its subexpressions.
+* If an expression encloses a subquery (see [link expressions.exists `exists(`...`)`], [link in_subquery `in(`...`)`], [link expressions.collective collective comparisons], and [link expressions.scalar `scalar(`...`)`]), then whatever is visible to the expression is visible to all the expressions inside the subquery.
+* Wherever an `optional_mapper` is visible, so is its content mapper.
+* Wherever a `tuple_mapper` is visible, so are all its member mappers.
+* Wherever a `class_mapper` is visible, so are all its member mappers and base mappers.
+* Nothing else is visible.
+
+So that's visibility defined. Now how does it affect which expressions may be evaluated?
+
+A necessary condition for [~exprn] to be evaluated is that it be /visibility-correct/. It is visibility correct if and only if at least one of the following hold:
+
+* [~exprn] is not a mapper: it's a value, like 3.14f.
+* [~exprn] is a mapper (possibly an `exprn_mapper`), and it is visible to itself.
+* [~exprn] is an `exprn_mapper`, and all of its subexpressions are visibility-correct.
+
+Currently quince does not check visibility correctness. That is left to the DBMS at run-time, so your application will see any violation in the form of a `dbms_exception`.
+
+[h4 Example 1]
+
+    const query<float> x_plus_3_14 = points.select(points->x + 3.14f);
+
+# The context `points.select(`...`)` makes `*points` (that's `points`'s value mapper) visible to `points->x + 3.14f`.
+# From 1: `points->x` is visible to `points->x + 3.14f`, because `points->x` a member of `*points`.
+# From 2: `points->x` is visible to `points->x` and to `3.14f`, because they are subexpressions of `points->x + 3.14f`.
+# From 3: `points->x` is visibility-correct because it's visible to itself.
+# `3.14f` is visibility-correct because it's not a mapper.
+# From 4 and 5: `points->x + 3.14f` is visibility-correct because both of its subexpressions are visibility-correct.
+
+[h4 Example 2]
+
+    const query<float> xs = points.select(points->x);
+    const query<float> x_plus_3_14 = xs.select(points->x + 3.14f);
+
+On the last line:
+
+# The context `xs.select(`...`)` makes `points->x` (that's `xs`'s value mapper) visible to `points->x + 3.14f`.
+# From 1: `points->x` is visible to `points->x` and to `3.14f`, because they are subexpressions of `points`.
+# From 2: `points->x` is visibility-correct because it's visible to itself.
+# `3.14f` is visibility-correct because it's not a mapper.
+# From 3 and 4: `points->x + 314f` is visibility-correct because both of its subexpressions are visibility-correct.
+
+[h4 Example 3] 
+
+    const query<float> x_plus_3_14 = points.select(points->x).select(points->x + 3.14f);
+
+Okay because it's the same as example 2.
+
+[h4 Example 4]
+
+    const exprn_mapper<float> additionA = points->x + 3.14f;
+    const exprn_mapper<float> additionB = points->x + 3.14f;
+    const query<float> x_plus_3_14 = points.select(additionA);
+    const query<float> attempted_reselect = x_plus_3_14.select(additionB);  // wrong
+
+On the last line:
+
+# `x_plus_3_14.select(`...`)` makes `additionA` (that's `x_plus_3_14`'s value mapper) visible to `additionB`.
+# `additionB` is not visible here, since `additionB` is not the same mapper as `additionA`.
+# `additionB` has subexpressions `points->x` and `3.14f`.
+# `points->x` is not visible here.
+# From 4: `points->x` is not visibility-correct.
+# From 5: Not all the subexpressions of `points->x + 3.14f` are visibility-correct.
+#  From 2 and 6: `additionB` is not visibility-correct.
+
+[h4 Example 5]
+
+    const query<float> attempted_reselect = points.select(points->x + 3.14f).select(points->x + 3.14f);  // wrong
+
+Wrong because it's the same as example 4.
+
+[h4 Example 6]
+
+    const exprn_mapper<float> addition = points->x + 3.14f;
+    const query<float> x_plus_3_14 = points.select(addition);
+    const query<float> reselect = x_plus_3_14.select(addition);
+
+On the last line:
+
+# The context `x_plus_3_14.select(`...`)` makes `addition` (that's `x_plus_3_14`'s value mapper) visible to `addition`.
+# From 1: `addition` is visibility-correct because it's visible to itself.
+
+[h4 Example 7]
+
+    const exprn_mapper<float> addition = points->x + 3.14f;
+    const query<float> reselect = points.select(addition).select(addition);
+
+Okay because it's the same as example 6.
+
+[endsect]

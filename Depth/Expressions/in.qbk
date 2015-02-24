@@ -1,0 +1,73 @@
+[section `in()`]
+
+Quince's `in()` function wraps the SQL keyword =IN=. There are three overloads, but they have the following in common:
+
+* `in()`'s first argument must be of type [~T] or `abstract_mapper<`[~T]`>`, for some mapped type [~T] such that:
+ * [~T] is represented in a single column (this is checked at run time), and:
+ * [~T] is not a `boost::optional`, and nor are any of its mapped members (if [~T] is a user-defined class, or a `std::tuple`), and nor are /their/ mapped members, etc. (this is checked at compile time).
+* `in()` returns a `predicate`.
+* When executed, that `predicate` evaluates the subexpression represented by the first argument, and tests whether the result is equal to any of a series of comparands.
+* To do this it may evaluate all of the comparands, or it may stop early when it finds a match.
+
+The three overloads differ in the way they specify that ["series of comparands]:
+
+[h4 Option 1: comparands are subsequent arguments to `in()`]
+
+`in()` takes zero or or more arguments after the first one. Given that the first one was of type [~T] or `abstract_mapper<`[~T]`>`, the subsequent arguments must each be of type [~T] or `abstract_mapper<`[~T]`>`.
+
+In this case the comparands are found by evaluating the subexpressions represented by those subsequent arguments.
+
+[h4 Option 2: comparands are passed through a vector of pointers]
+
+`in()` takes a second argument of type `std::vector<const abstract_mapper<`[~T]`> *>`. Actual values of type [~T] can be accommodated by converting them to `exprn_mapper<`[~T]`>`s, and taking the address. `in()` keeps clones of all the mappers, so it is not affected if you destroy the originals.
+
+In this case the comparands are found by evaluating the subexpressions represented by the elements of the `vector`.
+
+[#in_subquery]
+[h4 Option 3: a subquery produces the operands]
+
+`in()` takes as its second argument a query with value type [~T].
+
+The query is allowed to use mappers that belong to an outer context, as [link exists_visibility was the case with `exists()`].
+
+In this case the comparands are the outputs of the query.
+
+[heading Examples]
+
+    // Find points where x is 3.3f, 6.8f, or the square of y:
+    //
+    const query<point> special_points =
+        points
+        .where(in(points->x, 3.3f, 6.8f, points->y*points->y));
+
+    // Same again but using a std::vector;
+    //
+    const exprn_mapper<float> exprn3_3(3.3f);
+    const exprn_mapper<float> exprn6_8(6.8f);
+    const exprn_mapper<float> y_squared = points->y * points->y;
+    const std::vector<const abstract_mapper<float>*> special_x_values{&exprn3_3, &exprn8_8, &y_squared};
+    const query<point> special_points_again =
+        points
+        .where(in(points->x, special_x_values));
+
+    // Find points where either x or y is a (positive or negative)
+    // square root of 2:
+    //
+    const query<point> with_sqrt_two =
+        points
+        .where(in(2.0f, points->x*points->x, points->y*points->y));
+
+    // Find points whose x is interesting:
+    //
+    extern const query<float> interesting_numbers;
+    const query<point> interesting_wrt_x =
+        points
+        .where(in(points->x, interesting_numbers));
+
+    // Find points whose x/y ratio is among the first five interesting numbers:
+    //
+    const query<point> highly_interesting_wrt_xy_ratio =
+        points
+        .where(in(points->x / points->y, interesting_numbers.limit(5)));
+
+[endsect]

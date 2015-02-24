@@ -1,0 +1,52 @@
+[section Indexes and Foreign Key Constraints]
+
+[heading Indexes]
+
+A table (of any kind) can have an SQL index, if you call its `specify_index()` method before it is opened the first time.
+
+    points.specify_index(points->y);
+
+Now, if a subsequent call to `points.open()` creates the [link target], it will also create an index on the column that represents member `y`.
+
+Like `specify_key()`, `specify_index()` accepts multiple mappers as arguments, and each one can map any mapped type, with any number of columns.
+
+So we can generalize to [~table]`.specify_index(`[~mapper0]`,` [~mapper1]`,` ...`)`.
+
+[~table]'s value mapper will be [link expressions.visibility visible] to each of the [~mapperi]s.
+
+Then the index will be one that orders the elements of [~table] by the [~mapperi]s, with [~mapper0] the most significant, [~mapper1] the next most significant, and so on. The ordering for each [~mapperi] will be the ordering described [link optional_order here], [link tuple_order here], or [link class_order here] if it's an `optional_mapper`, `tuple_mapper` or `class_mapper`; and the DBMS's ordering otherwise.
+
+You can call [~table]`.specify_index()` any number of times, and then if [~table]`.open()` creates the target, it will create all the indexes you have specified.
+
+[h5 PostgreSQL-specific extensions]
+
+For tables in a PostgreSQL database, `specify_index()` also allows:
+
+* indexing by computed values, e.g. `points.specify_index(points->x + points->y);`
+* A combination of ascending and descending orderings, using the special overloads of prefix `+` and `-` [link ascending_descending in the same way as the `order()` method].
+
+So, for a PostgreSQL table, the general form is [~table]`.specify_index(`[~exprn0]`,` [~exprn1]`,` ...`)`, where the `exprni`s are any expressions that would be allowed as arguments to [~table]`.order()`.
+
+[~table]'s value mapper will be [link expressions.visibility visible] to each of the [~exprni]s.
+
+Then the resulting index will be one that orders the elements of [~table] in the same way as [link queries.order [~table]`.order(`[~exprn0]`,` [~exprn1]`,` ...`)`].
+
+[heading Uniqueness]
+
+The method `specify_unique()` is the same as `specify_index()`, except it does one more thing: it imposes uniqueness.
+
+That is to say, if you call [~table]`.specify_unique(`[~mapper0]`,` [~mapper1]`,` ...`)` (or on PostgreSQL: [~table]`.specify_unique(`[~exprn0]`,` [~exprn1]`,` ...`)`), and if a subsequent call to [~table]`.open()` creates the target, then the table will not be allowed to contain any two records for which all the [~mapperi]s (PostgreSQL: all the [~exprni]s) evaluate equal. Any operation that would violate this constraint will be caught by the DBMS, leading quince to throw a `dbms_exception`.
+
+[heading Foreign Keys]
+
+To give a table a foreign key constraint, call its `specify_foreign()` method before it is opened the first time.
+
+    points.specify_foreign(points->y, cinemas, cinemas->location.y);
+
+Now, if a subsequent call to `points.open()` creates the target, it will bind its `y` values to the `location.y` values of the `cinemas` table, in this sense: `points` is only allowed to hold records whose `y` member is equal to the `location.y` member of some record in `cinemas`. Any attempted violation will be caught by the DBMS, leading quince to throw a `dbms_exception`.
+
+The foreign key can be of any mapped type, with any number of columns, provided that it is of the same type as the field to which it is bound. In other words, in [~t]`.specify_foreign(`[~m]`,` [~t']`,` [~m']`)`, the mappers [~m] and [~m'] must be mappers of the same mapped type.
+
+In the common case where [~m'] is the primary key of [~t'], [~m'] can be omitted from the call.
+
+[endsect]

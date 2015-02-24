@@ -1,0 +1,32 @@
+[section:scalar Scalar Subqueries]
+
+If [~q] is a query with value type [~T], and if:
+
+* [~T] is a single-column type (this is checked at run time) and
+* [~q] produces exactly one row (this is checked at run time),
+
+then `scalar(`[~q]`)` builds and returns an `exprn_mapper<`[~T]`>`, which executes by executing [~q] and taking [~q]'s output as its value.
+
+In this context, [~q] is known as a /scalar subquery/.
+
+Scalar subqueries (like [link exists_visibility the subqueries that we pass to `exists()`]) are allowed to use mappers that belong to an outer context.
+
+We saw a typical use of `scalar()` [link scalar_example in the introduction]:
+
+    exprn_mapper<int64_t>
+    score(const exprn_mapper<serial> &movie_id) {
+        return scalar(
+            critics
+            .where(critics->favorite_movie == movie_id)
+            .select(count_all)
+        );
+    }
+
+It is typical in these ways:
+
+* The scalar subquery's output comes from an aggregate function. Here it is the function constant `count_all`, but any aggregate function is normal. This ensures that the scalar subquery will produce exactly one row.
+* The scalar subquery uses mappers that belong to an outer context. This is not required, but it's something that useful scalar subqueries tend to do.
+
+The example also shows a typical feature of my coding style: When I'm building a query that depends on an outer context to provide a mapper, [link advertise_dependency I write a C++ function for the purpose, with an argument to advertise the dependency].
+
+[endsect]

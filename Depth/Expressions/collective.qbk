@@ -1,0 +1,59 @@
+[section:collective Collective Comparisons (PostgreSQL only)]
+
+We have seen how `in()` can build server-side expressions that test whether the value of some subexpression is /equal/ to /some/ of the results of a subquery. Collective comparisons are more general. Instead of equality we can choose any of the six relational operators; and we can choose to ask whether /some/, or whether /all/, of the subquery's results pass the test.
+
+Caveats: collective comparisons are only available for PostgreSQL (this is checked at run time), and the series of comparands can only be given via a subquery, not directly in the commandline arguments, and not via a vector.
+
+Collective comparisons are presented as overloads of the C++ relational operarors `==`, `!=`, `<`, `>`, `<=`, and `>=`. These overloads apply when there is a mapped type [~T] such that:
+
+* one operand is an `abstract_mapper<`[~T]`>` or a [~T], and
+* the other operand is `all(`[~q]`)` or `some(`[~q]`)`, where [~q] is a query whose value type is [~T]. The query [~q] is allowed to use mappers that belong to an outer context, [link exists_visibility as was the case with `exists()`].
+
+So, if we start with our example of `in()` with a subquery:
+
+    // Find points whose x is interesting:
+    //
+    extern const query<float> interesting_numbers;
+    const query<point> interesting_wrt_x =
+        points
+        .where(in(points->x, interesting_numbers));
+
+We can rewrite it as a collective comparison:
+
+    // Find points whose x is interesting:
+    //
+    const query<point> equal_some =
+        points
+        .where(points->x == some(interesting_numbers));
+
+And now we can make variations:
+
+    // Find points whose x is below at least one interesting number:
+    //
+    const query<point> below_some =
+        points
+        .where(points->x < some(interesting_numbers));
+
+    // Find points whose x differs from every interesting number:
+    //
+    const query<point> unequal_all =
+        points
+        .where(points->x != all(interesting_numbers));
+
+    // Find points whose x exceeds every interesting number:
+    //
+    const query<point> above_all =
+        points
+        .where(points->x > all(interesting_numbers));
+
+It would be a mistake to read these in the same way we usually read comparisons in programming languages: ["Evaluate LHS; evaluate RHS; apply comparison operator between two results]. It would be a mistake because (a) there is no such step as ["evaluate RHS] here, and (b) there is no sense in which a comparison operator is evaluated just once. Better to understand them as loops. An expression of the form [~A OP] `some(`[~q]`)` considers each output [~o] that [~q] produces, and succeeds if [~A OP o] is ever true. An expression of the form [~A OP] `all(`[~q]`)` considers each output [~o] that [~q] produces, and succeeds if [~A OP o] is always true. (Of course this is subject to optimizations inside the DBMS.)
+
+For syntactic convenience, quince allows ["`some(`[~q]`)` [~OP' A]] and ["`all(`[~q]`)` [~OP' A]] as synonyms for ["[~A OP] `some(`[~q]`)`] and ["[~A OP] `all(`[~q]`)`], respectively, where [~OP'] is the converse relation to [~OP].  E.g.
+
+    all(interesting_numbers) < points->x
+    
+is equivalent to:
+
+    points->x > all(interesting_numbers)
+
+[endsect]

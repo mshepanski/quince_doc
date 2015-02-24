@@ -1,0 +1,262 @@
+[section:select `select()`]
+
+For any query [~q], [~q]`.select(`...`)` builds a query whose values are extracted or computed from the values that [~q] would have produced. Roughly speaking, expressions passed as arguments to `select(`...`)` are to quince what expressions in a ["select-list] are to SQL.
+
+[section With One Argument]
+
+For any query [~q], you can call [~q]`.select(`[~exprn]`)`, provided that:
+
+* [~exprn] is an `abstract_mapper<`[~T]`>`, for some mapped type [~T] (this is checked at compile time).
+
+[~q]'s value mapper will be [link expressions.visibility visible] to [~exprn].
+
+[~q]`.select(`[~exprn]`)` returns a `query` with the following characteristics:
+
+* Its value type is the same as [~exprn]'s result type.
+* Its value mapper is identical to [~exprn].
+* If [~exprn] does not contain an aggregate function, then [~q]`.select(`[~exprn]`)`'s output consists of successive results of [~exprn], evaluated using each successive record of [~q]'s output.
+* If [~exprn] contains an aggregate function, then [~q]`.select(`[~exprn]`)` produces exactly one record, evaluated based on the totality of [~q]'s output.
+
+(This treatment of aggregate functions is SQL behaviour; quince just ["passes it through] to the application.)
+
+[heading Examples]
+
+    extern table<point> points;
+    const query<point> some_points = points.where(points->y > 1.9f);
+    extern const query<float> interesting_numbers;
+
+    // Most typical cases. Each of these queries produces one float per point in points:
+    //
+    const query<float> xs = points.select(points->x);
+    const query<float> products = points.select(points->x * points->y);
+
+    // The exprn uses an aggregate function, so the query produces one output only:
+    //
+    const query<double> total = points.select(sum(points->x));
+
+    // Okay, because points's value mapper is identical to some_points's value mapper.
+    // (Stylistically questionable though.)
+    //
+    const query<float> some_xs = some_points.select(points->x);
+
+    // Also okay, because equivalent to the preceding example:
+    //
+    const query<float> some_xs_again =
+        points
+        .where(points->y > 1.9f)
+        .select(points->x);
+
+    // Invalid: the exprn is not an abstract_mapper:
+    //
+    const query<float> threes = points.select(3.0f);  // wrong
+
+    // Okay, although the exprn doesn't mention points's value mapper:
+    //
+    const query<float> threes = points.select(exprn_mapper<float>(3));
+
+    // Invalid: exprn refers to a value mapper that is not visible to it:
+    //
+    const query<bool> nonsense =
+        points
+        .select(points->x == *interesting_numbers); // wrong
+    const query<int64_t> more_nonsense =
+        points
+        .select(count(points->x == *interesting_numbers)); // wrong
+
+    // Okay: scalar() makes *interesting_numbers (aka the value mapper for interesting_numbers)
+    // visible to any expression inside its subquery.
+    //
+    const query<int64_t> point_counts =
+        interesting_numbers
+        .select(scalar(
+            points
+            .select(count(points->x == *interesting_numbers))
+        ));
+
+[endsect]
+
+[section With Multiple Arguments]
+
+For any query [~q], you can call [~q]`.select(`[~exprn0]`,` [~exprn1]`,` ... `)`, provided that:
+
+* each [~exprni] is an `abstract_mapper<`[~Ti]`>` for some mapped type [~Ti] (this is checked at compile time),
+* The mixture of [~exprni]s that do and don't use an aggregate function complies with SQL rules (checked at run time). In practice this means that either none do or all do.
+
+[~q]'s value mapper will be [link expressions.visibility visible] to each [~exprni].
+
+[~q]`.select(`[~exprn0]`,` [~exprn1]`,` ... `)` returns a `query` with the following characteristics:
+
+* Its value type is `std::tuple<`[~T0]`,` [~T1]`,` ...`>`.
+* Its value mapper is a new [link tuple_mapper `tuple_mapper<`[~T0]`,` [~T1]`,` ...`>`], in which each member mapper is identical to the respective [~exprni].
+* If none of the [~exprni]s contains an aggregate function, then:
+ * The output consists of successive `std::tuple`s, evaluated using successive records of [~q]'s output.
+ * Each one is formed by evaluating all the [~exprni]s, using the current record from [~q], and collecting the results into a `std::tuple`.
+* If all of the [~exprni]s contain an aggregate function, then:
+ * The output consists of exactly one `std::tuple`.
+ * This is formed by evaluating all the [~exprni]s, based on the totality of [~q]'s output, and collecting the results into a `std::tuple`.
+ 
+[heading Examples]
+
+    // Most typical case: Each of these queries produces one tuple per point in points:
+    //
+    const query<std::tuple<float, float>> swap =
+        points
+        .select(points->y, points->x);
+    const query<std::tuple<float, float>> pluses_and_minuses =
+        points
+        .select(points->x + points->y, points->x - points->y);
+
+    // Practise using a query of tuples:
+    //
+    const query<float> pluses_times_minuses =
+        pluses_and_minuses
+        .select(pluses_and_minuses->get<0>() * pluses_and_minuses->get<1>());
+
+    // Use operator* to get points's entire value mapper:
+    //
+    const query<std::tuple<point, float, float>> points_and_pluses_and_minuses =
+        points
+        .select(*points, points->x + points->y, points->x - points->y);
+
+    // Classes are statically mapped; therefore points_and_pluses_and_minuses->get<0>() 
+    // is not just an abstract_mapper<point>, it's a class_mapper<point>.
+    // So we can use its class_mapper features, e.g. ".x":
+    //
+    const query<float> xs_times_pluses =
+        points_and_pluses_and_minuses
+        .select(points_and_pluses_and_minuses->get<0>().x * points_and_pluses_and_minuses->get<1>());
+
+    // points_and_pluses_and_minuses->get<0>() is strictly identical to *point,
+    // so we can use one instead of the other (stylistically questionable though):
+    //
+    const query<float> xs_times_pluses_again =
+        points_and_pluses_and_minuses
+        .select(points->x * points_and_pluses_and_minuses->get<1>());
+
+[endsect]
+
+[section:collector With Multiple Arguments and a Collector Class]
+
+Multi-argument `select()` supports mapped classes as an output format, as an alternative to `std::tuple`s. The generated SQL is no different, but the classes might afford some extra convenience, if you like to use meaningful member names instead of `get<0>()` etc.
+
+If [~C] is a mapped class, with mapped members [~m0], [~m1], ... (in the order they were listed to `QUINCE_MAP_CLASS`), and with no mapped bases, then you can call `q.select<`[~C]`>(`[~exprn0]`,` [~exprn1]`,` ... `)`, provided that:
+
+* All the conditions for calling  `q.select(`[~exprn0]`,` [~exprn1]`,` ... `)` are satisfied, and
+* The type of each [~C]`::`[~mi] is the same as the result type of [~exprni] (this is checked at compile time).
+
+[~q]`.select<`[~C]`>(`[~exprn0]`,` [~exprn1]`,` ... `)` returns a `query` with the following characteristics:
+
+* Its value type is [~C].
+* Its value mapper is a new [link class_mapper `class_mapper<`[~C]`>`], in which each member mapper [~mi] is identical to the respective [~exprni].
+* Its output is the same as the output of [~q]`.select(`[~exprn0]`,` [~exprn1]`,` ... `)`, except that what would have gone into member [~i] of an output `std::tuple` now goes into member [~mi] of an output [~C].
+
+[heading Examples]
+
+    // Somewhere in a namespace, not in a function:
+
+    struct assortment {
+        point p;
+        float plus;
+        float minus;
+    };
+    QUINCE_MAP_CLASS(assortment, (p)(plus)(minus));
+
+
+    // Somewhere inside a function:
+
+    // Use operator* to get points's entire value mapper:
+    //
+    const query<assortment> assortments =
+        points
+        .select<assortment>(*points, points->x + points->y, points->x - points->y);
+
+    // Classes are statically mapped; therefore assortments->p is not just an
+    // abstract_mapper<point>, it's a class_mapper<point>.  So we can use its
+    // class_mapper features, e.g ".x":
+    //
+    const query<float> xs_times_pluses =
+        assortments
+        .select(assortments->p.x * assortments->plus);
+
+    // assortments->p is strictly identical to *point,
+    // so we can use one instead of the other (stylistically questionable though):
+    //
+    const query<float> xs_times_pluses_again =
+        assortments
+        .select(points->x * assortments->plus);
+
+[endsect]
+
+[section With `group(`...`)`]
+
+`select()`, in any of the forms already mentioned, can be preceded by a call to `group(`[~gexprn0]`,` [~gexprn1]`,` ...`)`, where each [~gexprni] is an `abstract_mapper<`[~T]`>` for some mapped type [~T]. E.g.:
+
+    const query<double> sums_per_y =
+        points
+        .group(points->y).select(sum(points->x));
+
+`group(`...`)` is quince's counterpart of SQL's =GROUP BY= clause.
+
+[heading How it affects visibility]
+
+If [~q] is the query to which the `group`/`select` operation is applied, then:
+
+# [~q]'s value mapper is [link expressions.visibility visible] to each of the expressions [~gexprni] that are passed to `group(`...`)`.
+# [~q]'s value mapper is /not/ visible to each of the expressions [~exprni] that are passed to `select(`...`)`. However:
+# [~q]'s value mapper is visible to any expression, within an [~exprni], that is a call of an aggregate function, and
+# The [~gexprni] are visible to each [~exprni].
+
+The example above demonstrates 3. The following demonstrates 4:
+
+    const query<float> unique_ys =
+        points
+        .group(points->y).select(points->y);
+
+And the next demonstrates 2, i.e. something that `group(`...`)` prevents you from doing:
+
+    const query<float> nonsense =
+        points
+        .group(points->y).select(points->x);  // Wrong
+
+On the other hand, here is something `group(`...`)` allows you to do, which would have been illegal without `group(`...`)` (because one argument to `select(`..`)` uses an aggregate function and the other doesn't):
+
+    const query<std::tuple<float, double>> histogram =
+        points
+        .group(points->y).select(points->y, sum(points->x));
+
+[heading How it affects the query type, value type, and value mapper]
+
+It doesn't.
+
+[~q]`.group(`[~gexprn0]`,` [~gexpr1]`,` ...`).select(`[~exprn0]`,` [~exprn1]`,` ...`)` or [~q]`.group(`[~gexprn0]`,` [~gexpr1]`,` ...`).select<`[~C]`>(`[~exprn0]`,` [~exprn1]`,` ...`)` returns a query of the same type, and with the same value type and value mapper, as it would if you deleted `.group(`[~gexprn0]`,` [~gexpr1]`,` ...`)`. (See the range of cases in the preceding sections.)
+
+[heading How it affects output]
+
+Imagine that we executed [~q], and divided the output records into sets, such that two records are in the same set if and only if each [~gexprni] evaluates to equal values for both records.
+
+Then, when [~q]`.group(`[~gexprn0]`,` [~gexpr1]`,` ...`).select(`[~exprn0]`,` [~exprn1]`,` ...`)` (or [~q]`.group(`[~gexprn0]`,` [~gexpr1]`,` ...`).select<`[~C]`>(`[~exprn0]`,` [~exprn1]`,` ...`)`) is executed, the process differs from the execution of an ungrouped `select(`...`)` in two ways:
+
+* There is one output for each of the sets.
+* When generating the output for set /s/, the [~exprni]s are evaluated as follows:
+ * if [~exprni] does not use an aggregate function, it is evaluated using an arbitrary record from /s/, and
+ * if [~exprni] uses an aggregate function, it is evaluated based on the totality of records in /s/.
+
+[heading What about compositionality?]
+
+Often, when we chain together quince calls, we are building queries from queries in pipeline fashion, e.g. `points.where(points->x > 0).order(points->y).limit(2).select(points->y)`. Then each period (`.`) marks a point of loose coupling. On its left we build a query; on its right we use that query; but the code on the right won't mind if we replace the code on the left with something else that makes the same output.
+
+The period in the middle of `group(`...`).select(`...`)` is not like that. The `group(`...`)` call on its left does /not/ build a query. Its return type is an obscure class, which has no output, and no methods other than `select(`...`)`. My advice is: treat `group(`...`).select(`...`)` as indivisible.
+
+The pipeline metaphor is still valid; we just need to stipulate that each section of pipe stretches from the creation of one query to the creation of another. So `group(`...`).select(`...`)` counts as one pipe-section, not two.
+
+[endsect]
+
+[section Performance Tip: Avoid Repeated Subexpressions]
+
+If you are using `select()` to build a query, upon which you will build further with `where()` or `order()`, and if some expression that occurs as an argument to `select()` is an exact duplicate of an expression that occurs in an argument to `where()` or `order()` (possibly as a subexpression), then consider building that expression just once, and holding it in a `const exprn_mapper` variable that you use and reuse. Using copies of the original is fine too; what matters is to avoid assembling it from parts multiple times.
+
+If you follow this advice, then quince will use a column alias to avoid repeated evaluations of the expression in the SQL.
+
+[endsect]
+
+[endsect]

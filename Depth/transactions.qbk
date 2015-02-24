@@ -1,0 +1,65 @@
+[chapter Transactions
+    [quickbook 1.6]
+]
+
+Quince's `transaction` class provides an [@http://en.wikipedia.org/wiki/Resource_Acquisition_Is_Initialization RAII] wrapper for SQL's =BEGIN=, =COMMIT= and =ROLLBACK= commands.
+
+You can construct a `transaction` object while another `transaction` object, for the same database
+[footnote
+Transactions for different databases are unrelated to each other, and do not count as nested within each other.
+]
+, exists on the same thread. Then the newer `transaction` is said to be /nested/. Nested transactions (to any depth) wrap SQL's =SAVEPOINT=, =ROLLBACK TO=, and =RELEASE SAVEPOINT= commands.
+
+Every DBMS offers a range of options about its synchronization behaviour (isolation level, ["shared-cache locking]). To the extent that that control is available to quince applications, it is via the [link quince_postgresql.constructor backend] [link quince_sqlite.constructor libraries], not via quince itself. Quince's `transaction` class assumes that the synchronization behaviour has already been configured to your taste, or more accurately: it has no awareness of it. If the DBMS does the right thing, or the wrong thing, or is efficient, or inefficient, then that is what an application using the `transaction` class will see.
+
+[heading Starting, committing, and rolling back a transaction]
+
+Code for a typical transaction looks like this:
+
+    {
+        transaction txn(db);
+
+        // ... statements to be executed in one transaction ...
+
+        txn.commit();
+    }
+
+If the body runs all the way through, then `txn.commit();` will be executed and the transaction will be committed. If `txn` falls out of scope without being committed, then the transaction will be rolled back. So if you are part way through a transaction and you want it rolled back, throw an exception that will not be caught within the `transaction`'s scope.
+
+Caution: the transaction will be rolled back if you bypass the `commit()` by /any/ means, including `break`, `continue` or `return`. That can lead to bugs, e.g. you've finished the work you wanted to do, you think you're `return`ing in triumph, and then it all gets rolled back as if it were failure. To avoid confusion, I suggest that you never use `break`, `continue` or `return` in a way that would exit a `transaction`'s scope.
+
+`commit()` is only allowed on the `transaction` that is currently the innermost one for its database. If you try to commit an outer `transaction` (not necessarily the outermost) while an inner `transaction` exists, or commit a `transaction` that was created on another thread, then `commit()` throws a `non_current_txn_exception`.
+
+[#deadlock]
+[heading Deadlock]
+
+When an operation would result in deadlock, the DBMS reports it to quince, and quince throws `deadlock_exception`. Usually that is not an error, but it is a sign that the transaction needs to be rolled back and tried again. Here is some code you can use:
+
+    for (;;) {
+        try {
+            transaction txn(db);
+
+            // statements to be executed in one transaction ...
+
+            txn.commit();
+        }
+        catch (const deadlock_exception &) {
+            continue;
+        }
+        break;
+    }
+
+[heading Implementation]
+
+Quince `transaction`s pass on the subtle behaviour of the SQL constructs that they wrap, so you might need to know what is going on at the SQL level. The following table provides translations.
+
+[table
+[[Quince][SQL for an outermost transaction][SQL for a nested transaction]]
+[[`transaction` [~txn] constructed][=BEGIN=][=SAVEPOINT save_point_=[~nnn]]]
+[[[~txn]`.commit()`][=COMMIT=][]]
+[[[~txn] destructed without having been committed][=ROLLBACK=][=ROLLBACK TO save_point_=[~nnn]]]
+[[[~txn] destructed, whether committed or not][][=RELEASE SAVEPOINT save_point_=[~nnn]]]
+]
+
+([~nnn] stands for a number that quince allocates, to identify each nested transaction uniquely within an outermost transaction.)
+

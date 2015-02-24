@@ -1,0 +1,41 @@
+[section `predicate`s and Logical Operations]
+
+`predicate` is a typedef name of `exprn_mapper<bool>`. We know that any `exprn_mapper<`[~T]`>` can be implicitly constructed from a value of type [~T], so there are constants `predicate(true)` and `predicate(false)`. We also saw that [link expressions.relational the relational operators] produce `predicate`s, and we are about to meet other devices that produce them. In this section it's the /logical operators/, i.e. operators that produce `predicate`s from other `predicate`s.
+
+Quince defines overloads of the infix binary operators `&&` and `||`, and of the prefix unary operator `!`.
+
+The overloads of `&&` and `||` apply when one of the operands is of type `predicate` and the other is of type `predicate` or `bool`. The overload of `!` applies when the operand is of type `predicate`.
+
+There are also overloads of the infix binary operators `==` and `!=`, which apply when one of the operands is of type `predicate` and the other is of type `predicate` or `bool`. Whenever they /can/ apply, they /do/ apply: these logic overloads of `==` and `!=` take priority over the [link expressions.relational more general overloads].
+
+In all cases, logic operators return a `predicate`. Usually it represents a server-side expression that, when executed, evaluates the subexpression(s) represented by the operand(s), and then applies the appropriate SQL operator (=AND=, =OR=, =NOT=, [^=] or [^!=]) to the result(s).
+
+Some of those steps might be skipped, however, if the expression is optimized. Quince applies the following optimizations recursively:
+
+[table
+[[Before][After]]
+[[ /T/ && X ] [ X ]]
+[[ X && /T/ ] [ X ]]
+[[ /F/ && X ] [ `false` ]]
+[[ X && /F/ ] [ `false` ]]
+[[ /F/ || X ] [ X ]]
+[[ X || /F/ ] [ X ]]
+[[ /T/ || X ] [ `true` ]]
+[[ X || /T/ ] [ `true` ]]
+[[ /T/ == X ] [ X ]]
+[[ X == /T/ ] [ X ]]
+[[ /F/ == X ] [ ! X ]]
+[[ X == /F/ ] [ ! X ]]
+[[ /T/ != X ] [ ! X ]]
+[[ X != /T/ ] [ ! X ]]
+[[ /F/ != X ] [ X ]]
+[[ X != /F/ ] [ X ]]
+[[ !/T/ ] [ `false` ]]
+[[ !/F/ ] [ `true` ]]
+]
+
+where /T/ is either `true` or `predicate(true)`, /F/ is either `false` or `predicate(false)`, and `X` is any operand. 
+
+If the result of any optimization is a `bool` rather than a `predicate`, it is converted to a `predicate(true)` or `predicate(false)`.
+
+[endsect]

@@ -1,0 +1,56 @@
+[section `distinct()` and `distinct_on()`]
+
+For any query [~q], [~q]`.distinct(`...`)` builds a query whose output is [~q]'s output, but with exact duplicates removed. It's a wrapper for SQL's =DISTINCT=.
+
+[~q]`.distinct()` returns a `query` with the following characteristics.
+
+* Its value type is the same as [~q]'s
+* Its value mapper is identical to [~q]'s.
+* Its output consists of one record from each set of exact duplicate records that [~q] would produce.
+
+[heading `distinct_on()` (PostgresSQL only)]
+
+For any query [~q], [~q]`.distinct_on(`...`)` builds a query whose output is [~q]'s output, but with the results in a specified order, and duplicates with respect to the sort expressions removed. It's a wrapper for SQL's =DISTINCT ON=, but with a difference explained below.
+
+For any query [~q], you can call [~q]`.distinct_on(`[~exprn0]`,` [~exprn1]`,` ...`)`, provided that:
+
+* each [~exprni] is an `abstract_mapper<`[~Ti]`>` for some mapped type [~Ti].
+
+[~q]'s value mapper will be [link expressions.visibility visible] to each [~exprni].
+
+[~q]`.order(`[~exprn0]`,` [~exprn1]`,` ...`)` returns a `query`, with the following characteristics:
+
+* Its value type is the same as [~q]'s.
+* its value mapper is identical to [~q]'s.
+* Its output consists of one record from each set of matching records that [~q]`.order(`[~exprn0]`,` [~exprn]`,` ...`)` would produce, where ["matching] means ["having equal values of each [~exprni] respectively].
+
+The ["one record from each set] is chosen unpredictably by PostgreSQL. You can control the choice by pre-sorting the input, i.e.:
+[:
+    [~q]`.order(`[~oexprn0]`,` [~oexprn1]`,` ...`).distinct_on(`[~exprn0]`,` [~exprn1]`,` ...`)`
+]
+Then, from each set that matches on all the [~exprni]s, `distinct_on()` will find the one that is first in order of the [~oexprni]s.
+
+[h4 Difference from PostgreSQL's =DISTINCT ON=]
+
+The [@http://www.postgresql.org/docs/9.3/static/sql-select.html#SQL-DISTINCT PostgreSQL documentation] says:
+
+[:The =DISTINCT ON= expression(s) must match the leftmost =ORDER BY= expression(s).]
+
+Rather than pass this requirement on to application programmers, quince inserts the required =ORDER BY= expression(s) automatically. So, if we take the [@http://www.postgresql.org/docs/9.3/static/sql-select.html#SQL-DISTINCT PostgreSQL documentation]'s example:
+
+[:
+SELECT DISTINCT ON (location) location, time, report
+    FROM weather_reports
+    ORDER BY location, time DESC;
+]
+
+The quince equivalent would be:
+
+    weather_reports
+    .order(- weather_reports->time)
+    .distinct_on(weather_reports->location)
+    .select(weather_reports->location, weather_reports->time, weather_reports->report)
+
+And we let quince add the ordering by `weather_reports->location`, at a higher lexicographic significance than the ordering by `weather_reports->time`.
+
+[endsect]

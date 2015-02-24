@@ -1,0 +1,37 @@
+[chapter Tables
+    [quickbook 1.6]
+]
+
+[section Tables in General ]
+
+I use the noun ["table], in normal font, for objects of two C++ types: `table` and `serial_table`. There are differences between them, as we shall see, but they have 99% of their DNA in common. Every table has the following features:
+
+* It represents an SQL table at a specific /site/, which means:
+ * with a specific SQL name,
+ * in a specific database,
+ * in a specific schema (PostgreSQL only),
+ * optionally, in a specific attached database (sqlite only).
+* It is a kind of query, so it has a value type and a value mapper, and its value mapper is accessible via `*` and `->`.
+* It has an SQL name.
+* It has two states: closed and open.
+* When it's closed, you can:
+ * specify a primary key, indexes, and foreign key constraints,
+ * alter the nature of the SQL table it represents, i.e. change its name, add or remove columns, or change the columns' names or types,
+ * delete the SQL table it represents,
+ * customize the mapping of polymorphically mapped types within the table,
+ * open it.
+* When it's open, you can:
+ * manipulate its data, i.e. add, remove, or update records.
+ * use it as a query,
+ * close it.
+
+We discussed queries in [link queries the previous chapter], and there is nothing extra to be said about using a table in that way. We'll come to mapping customizations in [link custom the next chapter]. The present chapter, then, is for the other items.
+
+[endsect]
+
+[include terminology.qbk]
+[include life-cycle.qbk]
+[include construction.qbk]
+[include indexes-and-fkeys.qbk]
+[include data-manipulation.qbk]
+[include table-alteration.qbk]

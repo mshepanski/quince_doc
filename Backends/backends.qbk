@@ -1,0 +1,6 @@
+[part The Back-End Libraries
+    [quickbook 1.6]
+]
+
+[include quince_postgresql.qbk]
+[include quince_sqlite.qbk]

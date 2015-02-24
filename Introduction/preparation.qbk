@@ -1,0 +1,156 @@
+[chapter Preparation
+    [quickbook 1.6]
+]
+
+[section Which DBMS(es) Will You Be Using?]
+
+This chapter explains how to set up your computer so it's ready for you to write, build, and run quince applications. But first, you need to decide which DBMS(es) you want your applications to talk to. Currently your options are:
+
+* PostgreSQL
+* Sqlite
+* Both of the above.
+
+If you choose one DBMS now and you decide you want the other later, no problem: you can come back to this chapter and do the steps you missed the first time.
+
+[endsect]
+
+[section Prerequisites]
+
+[heading A good C++ compiler]
+
+If you haven't updated your C++ compiler for a while, then now would be a good time. I can tell you that the following are suitable:
+
+* Microsoft Visual Studio 2013 Express Update 2
+* g++ 4.7.3
+* clang 3.3
+
+and the following are /not/ suitable:
+
+* Microsoft Visual Studio 2013 Express Update 1
+* g++ 4.7.2
+* clang 3.1
+
+[heading Boost libraries]
+
+I have used boost 1.55.0 and 1.56.0 successfully; I can't vouch for any earlier versions.
+
+There are comprehensive download and install instructions for the latest version [@http://www.boost.org/more/getting_started/index.html here].
+
+Many of the boost features are in headers, but you will need to have compiled versions of:
+
+* Boost.System
+* Boost.Thread
+* Boost.Filesystem
+
+[heading Boost.Build]
+
+This is the tool that is used to build boost, so depending on which choices you made when you installed boost (e.g., did you take any shortcuts, such as downloading prebuilt binaries?), you may or may not have Boost.Build ready to go. Just to be sure, follow [@http://www.boost.org/boost-build2/doc/html/bbv2/installation.html these instructions]. While you're there, you will encounter the command =b2=. Put it in your command path; you'll be needing it soon.
+
+[heading PostgreSQL (PostgreSQL users only)]
+
+If you're going to use the PostgreSQL backend, then you need:
+
+* The libpq library. Your applications will link to this.
+* A PostgreSQL database server, running somewhere, possibly on your development machine. Your applications will communicate with this when they run.
+
+I use version 9.3 of both libpq and the server. I know that version 9.2 of the server is not suitable.
+
+You can get libpq and the server together as part of the PostgreSQL core distribution. Follow [@http://www.postgresql.org/download/ these instructions] to download and install a prebuilt binary package, or to build it from source, whichever you prefer.
+
+[heading Sqlite (sqlite users only)]
+
+I use sqlite 3.8.4.1; I can't vouch for any earlier versions.
+
+Get a full ["amalgamation] from [@http://www.sqlite.org/download.html here]. Do not get the library in precompiled binary form, and do not compile it yourself either. It will be compiled automatically later, by the quince_sqlite build process. All you need are the files =sqlite.h= and =sqlite.c=, side-by-side in some directory.
+
+[endsect]
+
+[section Downloading Quince and the Backends]
+
+The source for quince and the two backend libraries are on github, in the following public repositories:
+
+* mshepanski/quince
+* mshepanski/quince_postgresql
+* mshepanski/quince_sqlite
+
+Follow the instructions [@https://help.github.com/articles/fork-a-repo here] to download quince and whichever backend(s) you need.
+
+The result should be that you have one directory for each downloaded library, and each of those directories should contain subdirectories =include= and =src=, and a file =jamroot.jam=.
+
+[endsect]
+
+[section Configuring Boost.Build]
+
+Boost.Build is the product that will build each of the libraries in the quince family, but first you must configure it, in two steps.
+
+[heading user-config.jam]
+
+You need to create the file =user-config.jam= in your home directory, or in one of the other [@http://www.boost.org/boost-build2/doc/html/bbv2/overview/configuration.html approved places], unless it already exists. Then you need to add some lines.
+
+Here are the lines I have added on my Windows machine:
+
+    use-project /boost : "C:/local/boost_1_56_0" ;
+
+    constant libpq-name : "libpq" ;
+    path-constant libpq-include-dir : "C:/Program Files/PostgreSQL/9.3/include" ;
+    path-constant libpq-lib-dir : "C:/Program Files/PostgreSQL/9.3/lib" ;
+    path-constant sqlite-root : "C:/local/sqlite" ;
+
+    use-project /quince : "C:/Users/shep/quince/quince" ;
+    use-project /quince-postgresql : "C:/Users/shep/quince/quince_postgresql" ;
+    use-project /quince-sqlite : "C:/Users/shep/quince/quince_sqlite" ;
+
+Yours should be similar, but:
+
+* If you aren't a PostgreSQL user, delete the lines that define =libpq-name=, =libpq-include-dir=, =libpq-lib-dir=, and =quince-postgresql=.
+* If you aren't an sqlite user, delete the lines that define =sqlite-root= and =quince-sqlite=.
+* If you are a PostgreSQL user on a Unix-like system (one where the linker's commandline takes libraries in the =-l=[~foo]=.a= style), then change ="libpq"= to ="pq"= in the definition of =libpq-name=
+* Change all my absolute pathnames to absolute pathnames that are correct for your system. To clarify the ones that are not completely obvious:
+    * =C:/local/boost_1_56_0= is the root of my boost installation. That's the directory directly above =boost= and =include=.
+    * =C:/local/sqlite= is the directory directly above =sqlite.h= and =sqlite.c=.
+    * The final three should be the directories where you downloaded quince and the backends. Each of these is a directory directly above =src= and =include=.
+
+[heading boost-build.jam]
+
+You need to create a one-line file called =boost-build.jam=.
+
+If possible, put this file in some directory that is a common ancestor of the directories in which you downloaded quince and each of its backends. If there is no plausible common ancestor, then you can create multiple =boost-build.jam= files -- just so long as some `boost-build.jam` exists at or above each of the directories in which you'll be building.
+
+The purpose of this file is to guide Boost.Build to its own parent directory. Mine has the following content:
+
+    boost-build C:/local/boost_1_56_0/tools/build/src ;
+
+You just need to replace the absolute path with the absolute path of the corresponding directory on your machine. (Hint: if you are using boost 1.55 then it ends with =tools/build/v2=, and if you are using boost 1.56 then it ends with =tools/build/src=.)
+
+[endsect]
+
+[section Building Quince and the Backends]
+
+To build each library, change into its top-level directory (the one directly above =src= and =include=), and run the command =b2=.
+
+You may want or need to set some build properties via =b2='s commandline arguments. The commandline is documented [@http://www.boost.org/boost-build2/doc/html/bbv2/overview/invocation.html here].
+
+The only property that I /need/ to set is =address-model=64=, and only when I'm using my 64-bit Windows machine, on which msvc is the one and only toolset. Unfortunately I have not been able to find a definitive statement of when =b2= deduces the address model and when you need to specify it, so you may need to try with and without and see what works.
+
+The properties you are most likely to want to set are =variant= (with value =debug= or =release=) and =link= (with value =shared= or =static=).
+
+If you are using the msvc toolset then don't bother setting the =link= property; the build rules always set it to =static=. With other toolsets it defaults to =shared= and you can set it from the commandline if you want.
+
+If you have multiple toolsets (e.g. on my Ubuntu machine I have both gcc and clang), and if you have specified both of them in your =user-config.jam= file, then you should set a =toolset= property to tell =b2= which one to use.
+
+You never need to set the =threading= property; the build rules always set it to =multi=.
+
+You can build with different combinations of properties, e.g. you might build with =b2 variant=debug link=static= and again with =b2 variant=release link=shared=. ([@http://www.boost.org/boost-build2/doc/html/bbv2/overview/invocation.html The instructions] even show you how to build with multiple property choices in a single invocation of =b2=.) The outputs of these different builds are stored separately and don't interfere with each other.
+
+[endsect]
+
+[section Building an Application]
+
+My spies tell me that you are already a C++ developer, with processes in place for building applications, using your favorite build tool. So I won't tell you how to do that, but let me point you to a couple of things.
+
+* The directories to put in your compiler's include path are the ones named =include=. You'll find one for quince and one for each backend.
+* To find the library binaries, look in the =bin= directories. (These are at the same level as the =src= and =include= directories.) Under =bin= you will see a tree of subdirectories, branching out according to the combination of build properties that were used to build the binary. It's pretty self-explanatory, and when you reach the bottom you will find the library you were looking for.
+
+Now all you need is some application code. (That's a segue.)
+
+[endsect]

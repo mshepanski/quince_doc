@@ -1,0 +1,19 @@
+[section Arithmetic Operations ]
+
+Quince defines overloads of the infix binary operators `+`, `-`, `*` and `/`, and of the prefix unary operators `+` and `-`. All of these overloads build and return `exprn_mapper`s that represent server-side arithmetic operations.
+
+The overloads of the infix operators apply when there is a mapped type [~T], such that one of the operands is an `abstract_mapper<`[~T]`>`, and the other operand is an `abstract_mapper<`[~T]`>` or a [~T].
+
+The overloads of the prefix operators apply when there is a mapped type [~T], such that the operand is an `abstract_mapper<`[~T]`>`.
+
+In all cases, the result is an `exprn_mapper<`[~T]`>`, representing a server-side expression that, when executed, evaluates the subexpression(s) represented by the operand(s), and then applies the appropriate SQL operator (SQL's infix =+=, =-=, =*= or =/=; or prefix =+= or =-=) to the result(s).
+
+Notice that quince (quince 1.0, anyway) does not restrict the type [~T]. It polices type /consistency/, but as long as you are consistent in your efforts to multiply one string by another string to produce a third string, quince will pass your request through to the DBMS and let it detect the error, which your application will see in the form of a `dbms_exception`.
+
+However:
+
+* Sometimes you will see `+` applied between a `std::string` and an `abstract_mapper<std::string>`, or between two `abstract_mapper<string>`s. That is not a misuse of arithmetic; it is [link expressions.strcat string concatenation].
+
+* Sometimes you will see the prefix `+` and `-` applied to a wide range of types, in the context of `order(`...`)`. That is not a misuse of arithmetic; it is a [link ascending_descending feature of `order(`...`)`].
+
+[endsect]

@@ -1,0 +1,271 @@
+[section:join The `join()` Family of Functions]
+
+[section `join()`]
+
+[heading As a free function ...]
+
+The free function `join()` builds a query that produces all combinations of the outputs of some other queries. It's a wrapper for SQL's =JOIN=.
+
+For any queries [~q0], [~q1], ..., you can call `join(`[~q0]`,` [~q1]`,` ...`)`.
+
+It returns a `junction` (that's a kind of query) with the following characteristics:
+
+* Its value type is `std::tuple<`[~T0]`,` [~T1]`,` ...`>`, where [~T0], [~T1] ... are the value types of [~q0], [~q1] ... respectively.
+* Its value mapper is a new [link tuple_mapper `tuple_mapper<`[~T0]`,` [~T1]`,` ...`)`], in which the [~i]'th member mapper is identical to [~qi]'s value mapper.
+* Its output consists of `std::tuple`s, formed from each combination of the outputs of [~q0], [~q1], ... .
+
+[h5 Example]
+
+    const query<std::tuple<cinema, screen, movie>> combinations =
+        join(cinemas, screens, movies);
+
+[heading ... or as a method]
+
+For any queries [~l], [~r], the call [~l]`.join(`[~r]`)` is equivalent to `join(`[~l]`,` [~r]`)`.
+
+Note that the `join()` method, unlike the `join()` free function, always makes queries that produce tuples of /two/ elements. E.g. [~a]`.join(`[~b]`).join(`[~c]`)` produces outputs of the form `{(` -- `,` -- `},` -- `}`; whereas `join(`[~a]`,` [~b]`,` [~c]`)` produces outputs of the form `{` -- `,` -- `,` -- `}`.
+
+[h5 Example]
+
+    const query<std::tuple<screen, movie>> possible_screenings =
+        screens.join(movies);
+
+[endsect]
+
+[section `inner_join()`]
+
+The `inner_join()` method builds a query that produces all combinations of two queries' outputs that together meet some condition. It's a wrapper for SQL's =INNER JOIN=.
+
+For any queries [~l], [~r], you can call [~l]`.inner_join(`[~r]`,` [~condition]`)` provided that:
+
+* [~condition] is an `abstract_mapper<bool>` (in practice it will be a `predicate`).
+
+[~l] and [~r]'s value mappers will both be [link expressions.visibility visible] to [~condition].
+
+[~l]`.inner_join(`[~r]`,` [~condition]`)` returns a `conditional_junction` (that's a kind of query) with the following characteristics:
+
+* Its value type is `std::tuple<`[~Tl]`,` [~Tr]`>`, where [~Tl] and [~Tr] are [~l] and [~r]'s value types respectively.
+* Its value mapper is a new `tuple_mapper<`[~Tl]`,` [~Tr]`>`, whose two member mappers are identical to [~l] and [~r]'s value mappers respectively.
+* Its output consists of `std::tuple`s, formed from each combination of the outputs of [~l] and [~r], for which [~condition] evaluates to `true`.
+
+[~l]`.inner_join(`[~r]`,` [~condition]`)` is interchangeable with [~l]`.join(`[~r]`).where(`[~condition]`)`, which has exactly the same characteristics.
+
+[h5 Example]
+
+    const query<std::tuple<screen, movie>> current_screenings =
+        screens.inner_join(movies, screens->current_movie_id == movies->id);        
+
+[endsect]
+
+[section `left_join()`]
+
+The `left_join()` method is similar to `inner_join()` except that its output includes every output of the left-hand query at least once. It's a wrapper for SQL's =LEFT JOIN=.
+
+For any queries [~l], [~r], you can call [~l]`.left_join(`[~r]`,` [~condition]`)` provided that:
+
+* [~condition] is an `abstract_mapper<bool>` (in practice it will be a `predicate`), and
+* [~r]'s value type cannot be represented as all [^NULL]s (which is unlikely to arise, but see [link optionals_representation here] for a discussion of which types allow all [^NULL]s).
+
+[~l] and [~r]'s value mappers will both be [link expressions.visibility visible] to [~condition].
+
+[~l]`.left_join(`[~r]`,` [~condition]`)` returns a `conditional_junction` with the following characteristics:
+
+* Its value type is `std::tuple<`[~Tl]`,` `boost::optional<`[~Tr]`>>`, where [~Tl] and [~Tr] are [~l] and [~r]'s value types respectively.
+* Its value mapper is a new `tuple_mapper<`[~Tl]`,` `boost::optional<`[~Tr]`>>`, in which:
+ * member mapper 0 is identical to [~l]'s value mapper, and
+ * member mapper 1 is a new `optional_mapper<`[~Tr]`>` whose content mapper is identical to [~r]'s value mapper.
+* Its output consists of:
+ * `std::tuple`s formed from each combination of the outputs of [~l] and [~r], for which [~condition] evaluates to `true`, and
+ * `{`[~lo]`,` `boost::none}`, for each of [~l]'s outputs [~lo] that would not have made an appearance otherwise.
+
+[h5 Example]
+
+    const query<std::tuple<screen, boost::optional<movie>>> no_screen_left_behind =
+        screens.left_join(movies, screens->current_movie_id == movies->id);
+
+[endsect]
+
+[section `right_join()`]
+
+The `right_join()` method is similar to `inner_join()` except that its output includes every output of the right-hand query at least once. On PostgreSQL it's a wrapper for SQL's =RIGHT JOIN=. On sqlite it gets the same results by wrapping =LEFT JOIN= and swapping things around.
+
+For any queries [~l], [~r], you can call [~l]`.right_join(`[~r]`,` [~condition]`)` provided that:
+
+* [~condition] is an `abstract_mapper<bool>` (in practice it will be a `predicate`), and
+* [~l]'s value type cannot be represented as all [^NULL]s (which is unlikely to arise, but see [link optionals_representation here] for a discussion of which types allow all [^NULL]s).
+
+[~l] and [~r]'s value mappers will both be [link expressions.visibility visible] to [~condition].
+
+[~l]`.right_join(`[~r]`,` [~condition]`)` returns a `conditional_junction` with the following characteristics:
+
+* Its value type is `std::tuple<boost::optional<`[~Tl]`>,` [~Tr]`>`, where [~Tl] and [~Tr] are [~l] and [~r]'s value types respectively.
+* Its value mapper is a new `tuple_mapper<boost::optional<`[~Tl]`>,` [~Tr]`>`, in which:
+ * member mapper 0 is a new `optional_mapper<`[~Tl]`>` whose content mapper is identical to [~l]'s value mapper, and.
+ * member mapper 1 is identical to [~r]'s value mapper.
+* Its output consists of:
+ * `std::tuple`s formed from each combination of the outputs of [~l] and [~r], for which [~condition] evaluates to `true`, and
+ * `{boost::none,` [~ro]`}`, for each of [~r]'s outputs [~ro] that would not have made an appearance otherwise.
+
+[h5 Example]
+
+    const query<std::tuple<boost::optional<screen>, movie>> no_movie_left_behind =
+        screens.right_join(movies, screens->current_movie_id == movies->id);
+
+[endsect]
+
+[section `full_join()` (PostgreSQL only)]
+
+The `full_join()` method is similar to `inner_join()` except that its output includes every output of the left hand query at least once, and every output of the right-hand query at least once. It's a wrapper for SQL's =FULL JOIN=.
+
+For any queries [~l], [~r], you can call [~l]`.full_join(`[~r]`,` [~condition]`)` provided that:
+
+* [~condition] is an `abstract_mapper<bool>` (in practice it will be a `predicate`), and
+* Neither [~l]'s value type nor [~r]'s value type can be represented as all [^NULL]s (which is unlikely to arise, but see [link optionals_representation here] for a discussion of which types allow all [^NULL]s).
+
+[~l] and [~r]'s value mappers will both be [link expressions.visibility visible] to [~condition].
+
+[~l]`.full_join(`[~r]`,` [~condition]`)` returns a `conditional_junction` with the following characteristics:
+
+* Its value type is `std::tuple<boost::optional<`[~Tl]`>,` `boost::optional<`[~Tr]`>>`, where [~Tl] and [~Tr] are [~l] and [~r]'s value types respectively.
+* Its value mapper is a new `tuple_mapper<boost::optional<`[~Tl]`>,` `boost::optional<`[~Tr]`>>`, in which:
+ * member mapper 0 is a new `optional_mapper<`[~Tl]`>` whose content mapper is identical to [~l]'s value mapper, and.
+ * member mapper 1 is a new `optional_mapper<`[~Tr]`>` whose content mapper is identical to [~r]'s value mapper.
+* Its output consists of:
+ * `std::tuple`s formed from each combination of the outputs of [~l] and [~r], for which [~condition] evaluates to `true`,
+ * `{`[~lo]`,` `boost::none}`, for each of [~l]'s outputs [~lo] that would not have made an appearance otherwise, and.
+ * `{boost::none,` [~ro]`}`, for each of [~r]'s outputs [~ro] that would not have made an appearance otherwise.
+
+[h5 Example]
+
+    const query<std::tuple<boost::optional<screen>, boost::optional<movie>>> nothing_left_behind =
+        screens.full_join(movies, screens->current_movie_id == movies->id);
+
+[endsect]
+
+[section `jump()`]
+
+The `jump()` method is a convenient interface to `inner_join()`, for times when the left-hand query's contribution to the output is not required.
+
+For any queries [~l], [~r], you can call [~l]`.jump(`[~r]`,` [~condition]`)` provided that:
+
+* [~condition] is an `abstract_mapper<bool>` (in practice it will be a `predicate`).
+
+[~l] and [~r]'s value mappers will both be [link expressions.visibility visible] to [~condition].
+
+[~l]`.jump(`[~r]`,` [~condition]`)` returns a `query` with the following characteristics:
+
+* Its value type is the same as [~r]'s.
+* Its value mapper is identical to [~r]'s.
+* Its output is as if formed by the following process: take the sequence of [~l]'s outputs, and replace each item [~lo] by all of [~r]'s outputs [~ro] such that [~condition] evaluates to `true` using the values [~lo] and [~ro].
+
+[~l]`.jump(`[~r]`,` [~condition]`)` is interchangeable with [~l]`.inner_join(`[~r]`, `[~condition]`).select(*`[~r]`)`, which has exactly the same characteristics.
+
+[h5 Example]
+
+    const query<movie> movies_being_screened =
+        screens.jump(movies, screens->current_movie_id == movies->id);
+
+[endsect]
+
+[section:collector With a Collector Class]
+
+All the functions in the `join()` family, other than `jump()`, support mapped classes as an output format, as an alternative to `std::tuple`s. Just like [link queries.select.collector the collector classes for `select()`], they don't affect the generated SQL, but they might afford some extra convenience, if you like to use meaningful member names instead of `get<0>()` etc.
+
+If:
+
+* [~J] is a call to a function in the `join()` family that would have returned a query with value type `std::tuple<`[~j0]`,` [~j1]`,` ...`>`, and
+* [~C] is a mapped class, with mapped members [~m0], [~m1], .... (in the order they were listed to `QUINCE_MAP_CLASS`), and with no mapped bases,
+
+then you can add [~C] as a template parameter to the call [~J], provided that:
+
+* All the conditions for making the call [~J] are satisfied
+* The number of mapped members [~C]`::`[~mi] equals the length of `std::tuple<`[~j0]`,` [~j1]`,` ...`>` (i.e. the number of queries being joined), and
+* Each mapped member [~C]`::`[~mi] is of the same type as the corresponding [~ji].
+
+Then the returned query has the following characteristics:
+
+* Its value type is [~C].
+* Its value mapper is a new [link class_mapper `class_mapper<`[~C]`>`], in which each member [~mi] is identical to the [~i]'th member of [~J]'s value mapper.
+* Its output is the same as [~J]'s, except that what would have gone into member [~i] of an output `std::tuple` now goes into member [~mi] of an output [~C].
+
+[h5 Example]
+
+    // Somewhere in a namespace, not in a function
+
+    struct movie_deployment {
+        boost::optional<screen> s;
+        movie m;
+    };
+    QUINCE_MAP_CLASS(movie_deployment, (s)(m));
+
+
+    // Somewhere inside a function:
+
+    const query<movie_deployment> movie_deployments =
+        screens.right_join<movie_deployment>(movies, screens->current_movie_id == movies->id);
+
+
+[endsect]
+
+[section Self Joins]
+
+[heading The problem ...]
+
+Suppose we want to generate all possible double features. We might try this:
+
+    const query<std::tuple<movie, movie>> double_features = join(movies, movies);  // wrong
+
+But let's recall one of the characteristics of the `join()` free function:
+
+[:Its value mapper is a new `tuple_mapper<`[~T0]`,` [~T1]`,` ...`)`, in which each member mapper is identical to the respective [~qi]'s value mapper.]
+
+In our case, then, both member mappers are identical to `movies`'s member mapper -- and hence identical to each other. That's disappointing, because we need two /different/ member mappers: one for the first `movie` in each pair and one for the second, so that code like:
+
+    for (const std::tuple<movie, movie> &df: double_features)
+        std::cout << std::get<0>(df).title << " with " << std::get<1>(df).title << std::endl;
+
+can extract one `movie` into element 0 of `df` and another `movie` into element 1.
+
+Here's another way to see the problem. Suppose we want to find all double features that are worth watching, i.e. we want to exclude those that consist of the same movie twice over. Then we might try building the query this way:
+
+    const query<std::tuple<movie, movie>> heterogeneous_double_features =
+        movies.inner_join(movies, movies->id != movies->id);  // wrong
+
+but it's clear that `heterogeneous_double_features`, if it could run at all, would not produce any output, since the condition `movies->id != movies->id` is always patently false.
+
+[heading ... and the solution: `table_alias`]
+
+Every table has an `alias()` method, which creates and returns a `table_alias` object. Let's start with that:
+
+    table_alias<movie> movies_alias = movies.alias();
+
+A `table_alias` is very much like the table that made it. `movies_alias` represents the same SQL table that `movies` represents, and, like `movies`, it is a kind of query. So it can be executed, or used to build more complex queries. It has a value type (the same as `movies`'s), and it has a value mapper.
+
+And its value mapper is very much like `movies`'s value mapper: it has the same type (`class_mapper<movie>`), and it knows how to map between `movie` objects and columns in the target SQL table. But the two mappers are not identical: when `movies_alias` and `movies` are used in the same query, their mappers behave /as if/ two distinct SQL tables were involved, and each mapper belonged a different one.
+
+This lets us solve the first problem case:
+
+    const query<std::tuple<movie, movie>> double_features = join(movies, movies_alias);
+
+    for (const std::tuple<movie, movie> &df: double_features)
+        std::cout << std::get<0>(df).title << " with " << std::get<1>(df).title << std::endl;
+
+And the second:
+
+    const query<std::tuple<movie, movie>> heterogeneous_double_features =
+        movies.inner_join(movies_alias, movies->id != movies_alias->id);
+
+We can have as many aliases of a table as we want: each call to `alias()` creates a new one:
+
+    table_alias<movie> movies_alias2 = movies.alias();
+
+    const query<std::tuple<movie, movie, movie>> triple_features =
+        join(movies, movies_alias, movies_alias2);
+
+What we cannot do, however, is make aliases of arbitrary /queries/. Only tables have aliases. So if we wanted to generate all possible double features of local hit movies, using the query [link local_hits `local_hits`], we could not do so directly. The solution would be to build a query `local_hits2`, exactly like `local_hits` except built using `movies_alias` instead of `movies`. Then we would call `join(local_hits, local_hits2)`.
+
+I like to think that a future version of quince will provide `alias()` on arbitrary queries, but until then, I concede that this is a lapse of [link queries.compositionality compositionality].
+
+[endsect]
+
+[endsect]

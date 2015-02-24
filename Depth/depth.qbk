@@ -1,0 +1,13 @@
+[part The Quince API in Depth
+    [quickbook 1.6]
+    [id depth]
+]
+
+[include exceptions.qbk]
+[include MappedTypes/mapped-types.qbk]
+[include Expressions/expressions.qbk]
+[include Queries/queries.qbk]
+[include Tables/tables.qbk]
+[include CustomMappings/custom-mappings.qbk]
+[include transactions.qbk]
+[include connection-management.qbk]

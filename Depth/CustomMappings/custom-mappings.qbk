@@ -1,0 +1,26 @@
+[chapter Custom Mappings
+    [quickbook 1.6]
+    [id custom]
+]
+
+[section Degrees of Freedom]
+
+The signature feature of polymorphically mapped types is that application code doesn't know what their concrete mapper classes are. E.g. code that stores and retrieves `uint16_t`s knows that they're mapped by some class that implements the interface `abstract_mapper<uint16_t>`, but it doesn't know which class; and so far, we haven't had much to say about it.
+
+Each backend library has default concrete mapper classes for all of the polymorphically mapped types (see the tables [link quince_postgresql.mappers here] and [link quince_sqlite.mappers here]). When we don't say otherwise, quince consults the backend library (whichever one is in charge of the database we are using), and uses its default mapper classes. But we /can/ say otherwise, and sometimes we /should/ say otherwise, because the defaults don't suit every purpose.
+
+For any polymorphically mapped type [~T], we can specify a concrete mapper class to map all instances of [~T] in a particular database, or all instances of [~T] in a particular table.
+
+So there are two steps. First get hold of a concrete mapper class, then deploy it to a database or table.
+
+For the first step, you can define a new concrete mapper class, i.e. your own subclass of `abstract_mapper<`[~T]`>` that implements all its pure virtuals. But I'm not going to document that process here, because (a) the most wanted customizations don't require it, and (b) it would involve a detour into quince's lower layers that you don't need to see for any other purpose.
+[footnote On the other hand, if you want to explore and experiment, don't let me discourage you. Take a look in the quince source code and you will find many concrete subclasses of `abstract_mapper` that you can use as examples. And afterwards, when you have your own mapper, the deployment process is [link custom.deployment the same as for predefined mappers].]
+
+The most wanted customizations are for numeric types that the DBMS doesn't represent directly. E.g. PostgreSQL doesn't have a built-in column type for `uint16_t`. Quince_postgresql supplies a default `uint16_t` mapper that uses a 32-bit signed integer, because to me that seemed like a good idea at the time, but for you it might be no good at all. In that case you probably want to represent `uint16_t` in a signed 16-bit integer, and there are a few ways to do that, with different pros and cons.
+
+Quince defines an assortment of concrete mapper classes that are ready to use in cases like this. You just need to understand what they do, make your choice, and deploy it.
+
+[endsect]
+
+[include predefined.qbk]
+[include deployment.qbk]

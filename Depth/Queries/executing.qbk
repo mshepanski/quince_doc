@@ -1,0 +1,124 @@
+[section:executing Executing Queries]
+
+[section With Multi-Record Output: `begin()` and `const_iterator`]
+
+The most general way to execute a query is by calling its `begin()` method. That returns an /iterator/, and the iterator provides access to all of the query's output, whether it be nothing, a single record, or so much that it can't fit in memory all at once. On PostgreSQL, the iterator wraps an SQL =CURSOR=.
+
+[~q]`.begin()` starts the query [~q]'s execution but does not wait for it to finish. It waits for output to start flowing, and when it receives the first row, or it learns that there will be no rows, it returns. Its return type is [~Q]`::const_iterator`. Thereafter the application may call [~Q]`::const_iterator::operator++()` to indicate readiness for more output, and the DBMS's production of data is flow-controlled accordingly.
+
+When the end of data is reached (either by `begin()` or by `++`), the iterator enters an /end state/, and then `++` may not be used on it again. The end state can be tested using the iterator's `is_end()` method, or by comparing it with a past-the-end iterator. If [~q]`.begin()` created the iterator, then [~q]`.end()` returns a past-the-end iterator to compare it with.
+
+If the iterator is destroyed before it enters the end state, then the query's execution is terminated.
+
+An iterator may (depending on the DBMS) buffer some rows of raw DBMS output. It also keeps a C++ representation of the current row, and its `operator*()` and `operator->()` return a const reference and a const pointer, respectively, to that.
+
+These iterators conform to the SQL /InputIterator/ concept, so for deeper treatment I refer to the documentation [@http://en.cppreference.com/w/cpp/concept/InputIterator here], and the linked pages, especially [@http://en.cppreference.com/w/cpp/concept/Iterator here] and [@http://en.cppreference.com/w/cpp/iterator/iterator_traits here].
+
+Those pages leave some terms for iterator implementations to define, and our query iterators define them as follows:
+
+For any query type [~Q], if [~I] is the type [~Q]`::const_iterator`, then:
+
+* [~I]`::difference_type` is `size_t`.
+* [~I]`::value_type` is [~Q]'s value type.
+* [~I]`::pointer` is `const `[~I]`::value_type *`.
+* [~I]`::reference` is `const `[~I]`::value_type &`.
+* [~I]`::iterator_category` is `std::input_iterator_tag`.
+
+The iterator returned by [~Q]`::end()` is a ["past-the-end] iterator and also a ["singular] iterator.
+
+[heading `fetch_size()`]
+
+If [~q] is a query on a PostgreSQL database, then its iterator will buffer raw DBMS output. The buffer holds 100 rows by default, but `fetch_size()` lets you control that number. For any value [~n] of type `uint32_t`, [~q]`.fetch_size(`[~n]`)` returns a query that is like [~q] in every way, except that its `begin()` method returns an iterator that buffers [~n] rows at a time.
+
+If [~q] belongs to an sqlite database, then [~q]`.fetch_size(`[~n]`)` is ignored, and harmless.
+
+If you build a query using `fetch_size()` and then build further with `where()`, `select()`, `order()` etc., the resulting query will be valid but its fetch size on PostgreSQL will be unpredictable, so I don't recommend doing that. Only call `fetch_size()` immediately before `begin()`.
+
+The C++11 `for` loop calls `begin()` on the query you give it, so this works:
+
+    for(const point &p: points.where(points->x > 4).fetch_size(50))
+        std::cout << p.y << std::endl;
+
+[endsect]
+
+[section With (at most) Single-Record Output: `get()`]
+
+The `get()` method executes a query that is expected to produce at most one record. For such a query, `get()` is preferable to `begin()`: it is more efficient, because it doesn't create an iterator, and to the reader of your code it clearly signals that multiple records are not expected.
+
+For any query [~q] with value type [~T], [~q]`.get()` returns a `boost::optional<`[~T]`>`.
+
+* If [~q] produces no records, [~q]`.get()` returns `boost::none`.
+* If [~q] produces exactly one record, [~q]`.get()` returns that record, wrapped in a `boost::optional`.
+* If [~q] produces more than one record, [~q]`.get()` treats it as an error and throws `multi_row_exception`. (Perhaps you meant to call [~q]`.limit(1).get()`.)
+
+One common use case is simple record retrieval by a unique key, e.g. a primary key:
+
+    extern const serial bridge_on_the_river_quince_id;
+
+    const boost::optional<movie> botrq =
+        movies
+        .where(movies->id==bridge_on_the_river_quince_id)
+        .get();
+
+or retrieval of part of such a record:
+
+    const boost::optional<std::string> botrq_title =
+        movies
+        .where(movies->id==bridge_on_the_river_quince_id)
+        .select(movies->title)
+        .get();
+
+In these cases we know that the query will produce at most one output, because the `where(`...`)` clause is applied directly to a table, and tests for an exact match of a unique key. In other cases our knowledge may be indirect. E.g., recall [link local_hits this definition of `local_hits`]:
+
+    const query<movie> local_hits =
+        local_movies
+        .distinct()
+        .order(- score(local_movies->id))
+        .limit(n);
+
+With a moment's thought we can prove that this query never produces two `movie`s with the same `id`. Therefore it is safe to ["look up] an `id` in `local_hits`, just as we did in `movies`:
+
+    const boost::optional<movie> local_hit_botrq =
+        local_hits
+        .where(local_hits->id==bridge_on_the_river_quince_id)
+        .get();
+
+or:
+
+    const boost::optional<std::string> local_hit_botrq_title =
+        local_hits
+        .where(local_hits->id==bridge_on_the_river_quince_id)
+        .select(local_hits->title)
+        .get();
+
+[endsect]
+
+[section:evaluate With Single-Value Output: `evaluate()`]
+
+The `evaluate()` method evaluates one server-side expression over the output of a query, expecting exactly one result, and it returns that result. Inevitably the expression will be a call to an aggregate function.
+
+For any query [~q], you can call [~q]`.evaluate(`[~exprn]`)`, provided that [~exprn] is an `exprn_mapper<`[~T]`>` for some mapped type [~T]. [~q]'s value mapper will be [link expressions.visibility visible] to [~exprn].
+
+[~q]`.evaluate(`[~exprn]`)` returns a [~T] (i.e. [~exprn]'s result type).
+
+* If [~q] produces no records, then [~q]`.evaluate(`[~exprn]`)` throws `no_row_exception`.
+* If [~exprn] produces a single value, when evaluated over the totality of [~q]'s output, then [~q]`.evaluate(`[~exprn]`)` returns that value.
+* If [~exprn] produces multiple values, when evaluated over the totality of [~q]'s output, then [~q]`.evaluate(`[~exprn]`)` throws `multi_row_exception`.
+
+So, to print the sum of the lengths of all movie titles:
+
+    std::cout << movies.evaluate(sum(length(movies->title))) << std::endl;
+
+[#standard_evaluations]
+[heading Standard Evaluations: `size()`, `empty()`]
+
+The functions `size()` and `empty()` perform two of the most common uses of `evaluate()`.
+
+For any query [~q]:
+
+* [~q]`.size()` returns a `uint64_t`, equal to the number of records that [~q] would produce.
+* [~q]`.empty()` returns a `bool`, which is true if and only if [~q] would produce no records.
+
+[endsect]
+
+[endsect]

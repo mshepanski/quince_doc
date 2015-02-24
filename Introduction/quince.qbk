@@ -1,0 +1,250 @@
+[chapter Queries in C++ Expressions
+    [quickbook 1.6]
+]
+
+[section What, Why, How, and for Whom?]
+
+Quince is a library that allows C++ programs to create SQL commands, and to have them executed on a relational DBMS.  When data accompanies an outgoing command, quince first converts the data from C++ types (including user-defined classes and structs) to the DBMS's formats; and when data comes back in reply, quince makes the reverse conversion.  So quince is an /Object Relational Mapper/ (ORM).
+
+The difference between quince and existing ORMs is this: /Quince offers more support for sophisticated queries/. A user who knows the power of a relational database will want to harness it, by issuing commands that employ server-side calculations, WHERE clauses, SELECT clauses, JOINs, DISTINCT, GROUP BY, INTERSECT, and so on, all combined and interconnected according to the user's own design. Quince treats such a user as the normal case, not an outlier. Of course it is also sometimes necessary to store or retrieve a single record, and quince makes that very easy to do; but it is only one point on a wide spectrum of possible uses. This reflects an underlying belief that an RDBMS is an engine of data processing as much as it is an engine of data storage.
+
+Other ORMs make room for sophisticated queries, if at all, by asking users to enter literal SQL text. For an ORM to insist on this is in several ways retrograde: it forces the user to juggle two syntactically different languages, C++ and SQL, with two unrelated type systems, and while any errors of syntax or type consistency on the C++ side are detected early, any such errors on the other side go undetected until run-time, when the SQL hits the DBMS.
+
+To avoid these difficulties, quince re-presents the SQL concepts in C++, so the user works full-time in C++ syntax with C++ data types. There are C++ functions `join()`, `distinct()` `where()` etc., corresponding to the SQL keywords, and there are C++ operator overloads corresponding to SQL's arithmetic, string, relational, and logic operators. All of these devices are statically typed, so that type errors are caught at compile time. At run time, they work together to build a data structure that represents the user's query. And finally, when the running application is ready for the query to be executed, quince renders the data structure as correct SQL and hands it off to the DBMS.
+
+[endsect]
+
+[section What Does it Look Like?]
+
+[section Like this ...]
+
+(Disclaimer: what you are about to see is a glimpse of application code that uses quince, largely without explanation. A more detailed guided tour can be found [link getting_started here], and more detail still [link depth here].)
+
+Consider the following task: print the titles of all the movies that are now playing on some screen in some cinema within a given radius of a given point.
+
+If we use the following C++ data types:
+
+    struct point {
+        float x;
+        float y;
+    };
+
+    struct movie {
+        serial id;                  // primary key with automatically assigned values
+        std::string title;
+    };
+
+    struct cinema {
+        serial id;                  // primary key with automatically assigned values
+        point location;
+    };
+
+    struct screen {
+        serial id;                  // primary key with automatically assigned values
+        serial cinema_id;           // foreign key to cinemas table
+        serial current_movie_id;    // foreign key to movies table
+    };
+
+and we assume that the following have been defined elsewhere:
+
+    extern serial_table<movie> movies;
+    extern serial_table<cinema> cinemas;
+    extern serial_table<screen> screens;
+
+    extern point my_place;
+    extern float max_radius;
+
+Then one way to construct a suitable query is:
+
+    const query<std::string> titles_playing_nearby =
+        cinemas
+        .where(
+               (cinemas->location.x - my_place.x) * (cinemas->location.x - my_place.x)
+             + (cinemas->location.y - my_place.y) * (cinemas->location.y - my_place.y)
+             <= max_radius * max_radius
+        )
+        .inner_join(screens, screens->cinema_id == cinemas->id)
+        .inner_join(movies, movies->id == screens->current_movie_id)
+        .select(movies->title)
+        .distinct();
+
+Now, to generate the required report, we use a C++11 `for`-loop. This causes the SQL query to be generated and executed, and the loop body to be run as each row of output arrives:
+
+    for (const std::string &title: titles_playing_nearby)
+        std::cout << title << std::endl;
+
+[endsect]
+
+[section ... or these]
+
+We have seen how to construct our query in a single C++ expression that covered nine lines. Now let's try it in smaller steps.
+
+First we define a couple of C++ functions to build the mathematical parts of the query:
+[#square]
+
+    // Build a server-side expression that squares a float:
+    //
+    exprn_mapper<float>
+    square(const exprn_mapper<float> &arg) {
+        return arg * arg;
+    }
+
+    // Build a server-side expression that computes the square of the
+    // distance between two points.
+    //
+    template<typename Point0, typename Point1>
+    exprn_mapper<float>
+    distance_squared(const Point0 &point0, const Point1 &point1) {
+        return square(point0.x - point1.x) + square(point0.y - point1.y);
+    }
+
+Then we build the query in stages:
+
+    const query<cinema> local_cinemas =
+        cinemas
+        .where(distance_squared(cinemas->location, my_place) <= square(max_radius));
+
+    const query<std::tuple<cinema, screen>> local_cinemas_and_their_screens =
+        local_cinemas
+        .inner_join(
+            screens,
+            screens->cinema_id == local_cinemas->id
+        );
+
+    const query<std::tuple<std::tuple<cinema, screen>, movie>> local_cinemas_and_their_screens_and_current_movies =
+        local_cinemas_and_their_screens
+        .inner_join(
+            movies,
+            movies->id == local_cinemas_and_their_screens->get<1>().current_movie_id
+        );
+
+    const query<std::string> titles_playing_nearby =
+        local_cinemas_and_their_screens_and_current_movies
+        .select(local_cinemas_and_their_screens_and_current_movies->get<1>().title)
+        .distinct();
+
+That spells out what was implicit in our first attempt, but now that I see it I don't entirely like it. The two ["joined] queries (`locals_cinemas_and_their_screens` and `local_cinemas_and_their_screens_and_current_movies`) both produce tuples containing largely unused information. It's probably not a performance issue, because those queries themselves are never executed. (The only query that is executed is the final one, `titles_playing_nearby`, and it has enough information to let the DBMS make sensible optimizations.) Nevertheless the tuples complicate the C++ source code, and for that reason I prefer the following (with the definition of `local_cinemas` unchanged):
+
+    const query<screen> local_screens =
+        local_cinemas
+        .inner_join(screens, screens->cinema_id == local_cinemas->id)
+        .select(*screens);
+
+    const query<movie> local_movies =
+        local_screens
+        .inner_join(movies, movies->id == local_screens->current_movie_id)
+        .select(*movies);
+
+    const query<std::string> titles_playing_nearby =
+        local_movies
+        .select(local_movies->title)
+        .distinct();
+
+The combination of `inner_join()` and `select()`, in the definitions of `local_screens` and `local_movies`, serves to ["jump across] from one query (or table) to another. Quince has a convenience function, `jump()`, whose job is to abbreviate that pattern. So my last revision is:
+
+    const query<screen> local_screens =
+        local_cinemas
+        .jump(screens, screens->cinema_id == local_cinemas->id);
+
+    const query<movie> local_movies =
+        local_screens
+        .jump(movies, movies->id == local_screens->current_movie_id);
+
+    const query<std::string> titles_playing_nearby =
+        local_movies
+        .select(local_movies->title)
+        .distinct();
+
+[endsect]
+
+[endsect]
+
+[section Rise of the Monster Query]
+
+Now we are handed a new task: find the `n` most critically acclaimed of the local movies. We assume the following declarations/definitions:
+
+    struct critic {
+        std::string name;
+        serial favorite_movie;     // foreign key to movies table
+    };
+
+    extern table<critic> critics;
+
+    extern const int n;
+
+[#scalar_example]
+First we define a C++ function to build the scoring part of our query:
+[#score]
+
+    // Build a server-side expression that counts the critics who like a given movie:
+    //
+    exprn_mapper<int64_t>
+    score(const exprn_mapper<serial> &movie_id) {
+        return scalar(
+            critics
+            .where(critics->favorite_movie == movie_id)
+            .select(count_all)
+        );
+    }
+
+Then we can define our query:
+[#local_hits]
+
+    const query<movie> local_hits =
+        local_movies
+        .distinct()
+        .order(- score(local_movies->id))
+        .limit(n);
+
+Problem solved, but now the boss wants something else: generate the titles of these local hits, ordered alphabetically, case-insensitive. Okay:
+[# local_hit_titles]
+
+    const query<std::string> alphabetized_local_hit_titles =
+        local_hits
+        .order(upper(local_hits->title))
+        .select(local_hits->title);
+
+The SQL that quince generates for `local_hits` (assuming that we execute it) is more complex than the SQL it generates for `local_movies`; and the SQL for `alphabetized_local_hit_titles` is more complex again. But the C++ code that we are writing, reading and (if this were a real application) maintaining is /not/ getting more complex. It's just one little step after another. When we use a query A in the definition of a larger query B, we don't look back at how A was defined; we treat it as though it were a simple table. Then we do the same with B to define C, and then D, and so on. We kind of know that somewhere in a dungeon there is an SQL statement with a thick fur of nested parentheses, and column aliases seeping from its every pore, but that is not something we humans have to confront
+[footnote We /can/ confront it though. Queries have a `to_string()` method, which returns the SQL text, including placeholders for any bound data, in a `std::string`. E.g., assuming the most recent definition of `local_movies`, and assuming that our tables reside on a PostgreSQL database, `alphabetized_local_hit_titles.to_string()` reveals the whole ugly truth: [br] [br]
+[^ SELECT r$10 FROM (SELECT r$10 FROM (SELECT DISTINCT  r$9, r$10 FROM (SELECT "movies"."id" AS r$9, "movies"."title" AS r$10 FROM (SELECT "screens"."id" AS r$14, "screens"."cinema_id" AS r$15, "screens"."current_movie_id" AS r$16 FROM (SELECT "cinemas"."id" AS r$11, "cinemas"."location.x" AS r$12, "cinemas"."location.y" AS r$13 FROM "test"."cinemas" WHERE ((("cinemas"."location.x")-($1))\*(("cinemas"."location.x")-($2)))+((("cinemas"."location.y")-($3))\*(("cinemas"."location.y")-($4))) <= ($5)\*($6)) AS q$1 INNER JOIN "test"."screens" ON "screens"."cinema_id" = r$11) AS q$2 INNER JOIN "test"."movies" ON "movies"."id" = r$16) AS q$3) AS q$4 ORDER BY (SELECT "count"(\*) AS r$20 FROM "test"."critics" WHERE "critics"."favorite_movie" = r$9 LIMIT 1) DESC LIMIT 2) AS q$5 ORDER BY "upper"(r$10) ]
+]
+. As the SQL complexity grows, our cognitive load stays constant. We could keep this up all day.
+
+Is it wise to build monster queries? Often no, but sometimes yes. If a single monster query replaces a C++ algorithm that issues many small queries, then the monster query might perform better, for several reasons. It might shift load from an application host to a DBMS host, which can be a win, depending on the circumstances; it probably reduces traffic between the application and the DBMS, and it may be advantaged by query optimization strategies within the DBMS.
+
+How far you go in the direction of monster queries is up to you, the application designer. Quince has no opinion, but whatever you decide, quince allows you to express your choice in manageable C++.
+
+[endsect]
+
+[section The Quincessential Dot Points]
+
+* Quince is a C++ library.
+* It is not a framework, i.e. it does not ask you to restructure your application. Just make calls into the library when you need to.
+* It is not a language, except perhaps in the [@http://c2.com/cgi/wiki?EmbeddedDomainSpecificLanguage EDSL] sense. There is no special compiler. Your source code does not go through any extra preprocessing stage.
+* Quince is written in C++11, and has been tested using:
+    * Microsoft Visual Studio 2013 Express, Update 2 on Microsoft Windows 7 Home Premium SP1
+    * g++ 4.7.3 on Ubuntu 12.04.4 LTS
+    * Clang 3.3 on Ubuntu 12.04.4.LTS
+* Quince must be used in combination with a backend library, which is tailored to a particular type of DBMS.
+* Backend libraries are currently available for PostgreSQL 9.3 and Sqlite3.
+* An application can be connected to multiple databases at once.
+* An application can be connected to databases of both DBMS types at once.
+* An application can access the same database (or multiple databases) concurrently from multiple threads.
+* Quince (in combination with the backend libraries) is currently able to map the following C++ types into database columns:
+    * `bool`,
+    * 8-, 16-, 32- and 64-bit signed and unsigned integers,
+    * single- and double-precision floating-point numbers,
+    * `std::string`,
+    * `std::vector<uint8_t>` (i.e. a blob),
+    * `boost::optional<`[~T]`>`, where [~T] is any type that quince can map.
+    * `std::tuple<`[~T0], [~T1] ...`>`, where [~T0], [~T1] ... are any types that quince can map.
+    * user-defined classes (including structs), whose members are of any types that quince can map.
+* In many cases, a user-defined class may be mapped with no change, or minimal changes, to its definition.
+* Before quince can connect to a database, the database must have been created by other means. Then quince is able to create tables (and, on PostgreSQL, schemas) as needed.
+* The database's character encoding is determined when the database is created. Quince then ["passes it through] to application code; i.e. the mapping of `std::string` to database columns does not add any transformation of characters.
+* Quince manages connections to the database. Application code never mentions connections.
+* Quince allows a user to select from among the DBMS's possible modes of transaction isolation, on a per-database basis. That determines what isolation guarantees the DBMS will provide. Quince then ["passes them though] to application code; i.e. a quince `transaction` class provides the same isolation guarantees as its SQL counterpart.
+* Quince, and the two current backend libraries, are under the GNU Lesser General Public License 3.0.
+* These libraries are available for download as C++ source code at no cost, but those who find them useful are encouraged to [link Donate click this link].
+
+[endsect]

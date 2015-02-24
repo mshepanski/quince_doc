@@ -1,0 +1,121 @@
+[section User-Defined Class Types ]
+
+[heading Defining a mapper class]
+
+[h4 Without mapped bases ...]
+
+We have seen this sort of thing several times:
+
+    namespace cinemascope {
+        struct point {
+            float x;
+            float y;
+        };
+        QUINCE_MAP_CLASS(point, (x)(y))
+    }
+
+The second-last line defines a mapper class, which maps a `point` by mapping its `x` and `y` members.
+
+The type being mapped (`point` in the example) can be a `class` or `struct`. I use the term ["class] for both.
+
+The type being mapped must have a public no-arguments constructor and a public destructor, either handwritten or (as here) compiler-generated.
+
+The type being mapped must be defined in some named namespace (nested is okay). It may or may not also be in an unnamed namespace.
+
+`QUINCE_MAP_CLASS` must be invoked from a location that meets two criteria:
+
+* It is in the same named namespace as the class.
+* It comes before any code that uses the mapper type, in any compilation unit.
+
+The sure and easy way to meet both criteria, regardless of whether the class is defined in a =.h= or a =.cpp= file, is to invoke the macro immediately after the class's definition.
+
+`QUINCE_MAP_CLASS`'s second argument gives a sequence of /mapped members/, i.e. non-static, non-const data members that should be mapped, in order to map the class. They must be of mapped types, and they must be direct members of the class, not members by inheritance. (Inherited members can be mapped by other means that we shall see very soon).
+
+The members in this sequence must be individually parenthesized (it's a [@http://www.boost.org/doc/libs/1_55_0/libs/preprocessor/doc/data/sequences.html `BOOST_PP_SEQ`]).
+
+The ordering of members in the sequence determines their significance for [link class_order comparisons and sorting], and it is also important if the class is used as a collector class for [link queries.select.collector `select()`] or [link queries.join.collector functions in the `join()` family]. It does not need to match the order of member declarations within the class.
+
+The mapped members must be accessable to quince. This can be achieved in either of two ways:
+
+* by the members being `public` (which they are implicitly in the example, since `point` is a `struct`), or
+* by the class declaring the relevant parts of quince to be its `friend`. It can do this by invoking the macro `QUINCE_IS_MY_FRIEND` at any place where a `friend` declaration is allowed. The macro takes your class name (the same as the first argument to `QUINCE_MAP_CLASS(`...`)`) as its argument, e.g. `QUINCE_IS_MY_FRIEND(point)`.
+
+The class may have other members, not mentioned to `QUINCE_MAP_CLASS` and hence not mapped. Quince will not touch those, except insofar as it implicitly constructs and destructs them via the class's no-arguments constructor and destructor.
+
+The class may also have bases, which cannot be mentioned to `QUINCE_MAP_CLASS`, and are not mapped. Quince will not touch those either (with the same exception for construction and destruction).
+
+[h4 ... or with mapped bases]
+
+The macro `QUINCE_MAP_CLASS_WITH_BASES` generalizes `QUINCE_MAP_CLASS`, to allow for classes with mapped bases as well as mapped members.
+
+    namespace cinemascope {
+        struct colored_point : point {
+            int r;
+            int g;
+            int b;
+        };
+        QUINCE_MAP_CLASS_WITH_BASES(colored_point, (point), (r)(g)(b))
+    }
+
+The first and third arguments to `QUINCE_MAP_CLASS_WITH_BASES` are the same as the first and second arguments to `QUINCE_MAP_CLASS`: /viz./ the name of the class and a list of its mapped (direct) members. The second argument is a list of the mapped bases (just one in this case), individually parenthesized.
+
+So: our use of `QUINCE_MAP_CLASS_WITH_BASES` defines a mapper class, which maps a `colored_point` by mapping its `point` base and its `r`, `g`, `b` members.
+
+Everything said above about `QUINCE_MAP_CLASS` applies to `QUINCE_MAP_CLASS_WITH_BASES` also, with these additions:
+
+The mapped bases must be of mapped types.
+
+The ordering of bases in the second argument determines their significance for [link class_order comparisons and sorting]. It does not need to match the order in the C++ base class list.
+
+The mapped bases must be accessable to quince.
+
+The class may have other bases, not mentioned to `QUINCE_MAP_CLASS_WITH_BASES` and hence not mapped. Quince will not touch those (with the exceptions for construction and destruction).
+
+["Diamond-pattern] class hierarchies, where some class [~B] is a base of some class [~D] via more than one path, are not permitted when [~B] is (directly or indirectly) a mapped base of [~D].
+
+[#class_mapper]
+[heading Classes' mapper classes: `class_mapper<`...`>`]
+
+Following an invocation of `QUINCE_MAP_CLASS(`[~C]`,` ...`)` or `QUINCE_MAP_CLASS_WITH_BASES(`[~C]`,` ...`)`, the class type [~C] becomes a mapped type. Furthermore, [~C] is statically mapped: its mapper class is always `class_mapper<`[~C]`>`.
+
+[#class_mapper_detail]
+(Detail: `class_mapper<`[~C]`>` is not the name that `QUINCE_MAP_CLASS(`[~C]`,` ...`)` or `QUINCE_MAP_CLASS_WITH_BASES(`[~C]`,` ...`)` defines. Those macros give the mapper class an obscure name, in the same namespace as [~C]. `class_mapper<`[~C]`>` is an alias of that obscure name. `class_mapper<`...`>`, like `optional_mapper<`...`>` and `tuple_mapper<`...`>`, is defined in namespace `quince`.)
+
+In addition to mapping [~C] to and from column formats, `class_mapper<`[~C]`>` provides two features that act as analogs, within quince expressions, of features that [~C] provides for normal C++ expressions:
+
+* For each mapped base [~B] of [~C], `class_mapper<`[~C]`>` has a public base class `class_mapper<`[~B]`>`.
+* For each mapped member [~m] of [~C], `class_mapper<`[~C]`>` has a public member, also called [~m], which is a const reference to the mapper for [~C]`::`[~m].
+
+Or in [@http://lmgtfy.com/?q=trochaic+heptameter trochaic heptameter]:
+
+* /The bases of the mapper are the mappers of the bases./
+* /The members of the mapper are the mappers of the members./
+
+It follows that, if [~C] inherits a mapped member [~bm] from a mapped base [~B], then `class_mapper<`[~C]`>` inherits a member called [~bm], which is a const reference to the mapper for [~B]`::`[~bm]. Or if you insist[footnote dactylic hexameter this time.]:
+
+* /The mapper inherits the mappers that map the inherited members./
+
+[heading Example]
+
+    // Include the two code fragments above
+
+    extern table<point> points;
+
+    const query<float> xs = points.select(points->x);  // member of mapper
+
+    extern table<colored_point> colored_points;
+
+    const query<float> colored_xs = colored_points.select(colored_points->x);  // inherited member of mapper
+
+[#class_order]
+[heading Order]
+
+When classes are compared on the server side with the relational operators, or sorted on the server side with `order()`, then the order is lexicographic, with the first mapped base most significant, followed by the second mapped base, and so on; then the first mapped member, the second mapped member, and so on.
+
+[heading Representation]
+
+`class_mapper` represents data by delegating to each of the base mappers and member mappers.
+
+When it delegates to member mapper [~m], it adds the name [~m] and a period to all the column names that [~m] produces, so those names cannot clash with column names that the other member mapppers produce.
+
+[endsect]

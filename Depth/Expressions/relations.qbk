@@ -1,0 +1,18 @@
+[section:relational Relational Operations ]
+
+Quince defines overloads of the infix binary operators `==`, `!=`, `<`, `>`, `<=` and `>=`. All of these overloads build and return `predicate`s (i.e. `exprn_mapper<bool>`s) that represent server-side comparisons.
+
+These overloads apply when there is a mapped type [~T], such that:
+
+* one of the operands is an `abstract_mapper<`[~T]`>`, and the other operand is an `abstract_mapper<`[~T]`>` or a [~T]; and.
+* [~T] is not a `boost::optional`, and nor are any of its mapped members (if it is a user-defined class, or a `std::tuple`), and nor are /their/ mapped members, etc.
+
+The resulting `predicate`, when executed, evaluates the subexpressions represented by the operands, and then compares the results.
+
+In cases where the subexpressions evaluate to single columns, the comparison is done simply by using an SQL relational operator (`=`, `!=`, `<` `>`, `<=` or `>=`).
+
+In cases where the subexpressions evaluate to multiple columns, because [~T] is a user-defined class, or a `std::tuple`, then comparison is lexicographic. Details are [link tuple_order here] and [link class_order here].
+
+Quince also overloads `==`, `!=`, `<`, `>`, `<=` and `>=` for [link expressions.collective another purpose].
+
+[endsect]

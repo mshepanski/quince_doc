@@ -1,0 +1,13 @@
+[book QUINCE: QUeries IN C++ Expressions
+    [quickbook 1.6]
+    [id Quince]
+    [copyright 2014 Michael Shepanski]
+    [authors [Shepanski, Michael]]
+    [license Distributed under the GNU Lesser General Public Licence, version 3.0]
+]
+
+[include Introduction/introduction.qbk]
+[include Depth/depth.qbk]
+[include Backends/backends.qbk]
+
+[include donate.qbk]

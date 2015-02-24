@@ -1,0 +1,35 @@
+[section Life Cycle of a Table Object]
+
+A table object is always in one of two states: /closed/ or /open/. It becomes open when quince verifies that its [link target] exists and [link conforms_to conforms to] it, and it is closed whenever quince considers this to be unverified.
+
+When you construct a table [~mytable], you specify its site. Its target might or might not exist already, and if it exists it might or might not conform to [~mytable]. The constructor doesn't communicate with the DBMS, so none of these things are confirmed. Therefore [~mytable] is in the closed state.
+
+A call to [~mytable]`.open()` tries to get [~mytable] into the open state, by communicating with the DBMS and:
+
+* If [~mytable]'s target doesn't exist, creating a target that conforms to [~mytable]. That includes:
+ * creating a schema if necessary (PostgreSQL only),
+ * attaching a database if necessary (sqlite only),
+ * creating the table, with the columns that [~mytable]'s value mapper expects.
+* If [~mytable]'s target exists, interrogating its metadata to verify that it conforms to [~mytable], and throwing a `table_mismatch_exception` if it doesn't.
+
+So, if [~mytable]`.open()` returns rather than throws, [~mytable] is open.
+
+Tables have methods that let you specify a primary key, indexes (with or without uniqueness constraints), and foreign key constraints. None of these methods takes immediate action. They specify actions in advance, which a subsequent call to open() will carry out, /if/ it decides to create the target
+[footnote You can't alter the primary key, indexes, or foreign key constraints on an SQL table that already exists. That is a limitation of quince 1.0.]
+. So the time to call these methods is before the first call to [~mytable]`.open()`. As a defence against programmer error, they check that [~mytable] is closed, and throw a `table_open_exception` otherwise.
+
+Once [~mytable] is open, you can treat it as a query, and you can manipulate its data. All the querying and manipulation operations require a conforming target, so they all check that [~mytable] is open, and throw a `table_closed_exception` if it isn't.
+
+Occasionally you may want to rename an SQL table, or change its ["shape], i.e. add or remove columns, or rename columns, or change their types. This is called an /alteration/. If the target conformed to [~mytable] before an alteration, then it will not conform afterwards; and conversely, if it conforms afterwards then it must not have conformed before. But quince's policy on state is simple: the table stays closed throughout. Closed state is a precondition and a postcondition of every alteration. (If you try to alter an open table it will throw `table_open_exception`, and the table will stay open and unaltered.)
+
+So you can alter a table before you ever open it, but that is not always sufficient. Some situations call for a complex ["schema evolution] process, involving several stages of alteration, query/manipulation, alteration, query/manipulation, ... . You need to `open()` the table before each query/manipulation step, but then the next alteration step needs it to be closed. So tables have a `close()` method, for that specific purpose.
+
+And that's the only purpose of `close()`. Don't think of closing a table as an obligation, like closing an open file descriptor, to release some valuable resource. There is no such resource; all `close()` does is flip a flag.
+
+`open()` and `close()` are the only actions that change a table's open/closed state.
+
+As a further defence against programmer error, `open()` and `close()` check that you aren't calling them redundantly. `open()` on an open table throws a `table_open_exception`; `close()` on a closed table throws a `table_closed_exception`.
+
+Finally, every table has the methods `drop()` and `drop_if_exists()`, which remove the target outright. The table object must be closed before these operations, and it remains closed. `drop()` wraps SQL's =DROP TABLE=, and `drop_if_exists()` wraps =DROP TABLE IF EXISTS=. So if the target doesn't exist, `drop()` will throw a `dbms_exception`, and `drop_if_exists()` will do nothing.
+
+[endsect]

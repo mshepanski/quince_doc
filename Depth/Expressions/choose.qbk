@@ -1,0 +1,68 @@
+[section `choose()`]
+
+`choose()` builds and returns an SQL expression that represents a choice among several  subexpressions, based on the values of other subexpressions. It's a wrapper for the SQL =CASE= construct.
+
+`choose()` takes the following arguments, in order:
+
+* Optionally, a /switch-expression/
+* One or more arguments of the form `when(`[~comparand]`, `[~result]`)`
+* Optionally, a /default-expression/.
+
+There must be two mapped types, [~C] (the /comparand type/) and [~R] (the /result type/), such that:
+
+* If the switch-expression is not present, then [~C] is `bool`.
+* Each of the [~comparand]s is an `abstract_mapper<`[~C]`>` or a [~C].
+* Each of the [~result]s is an `abstract_mapper<`[~R]`>` or an [~R].
+* The switch-expression, if present, is an `abstract_mapper<`[~C]`>` or a [~C].
+* The default-expression, if present, is an `abstract_mapper<`[~R]`>` or an [~R].
+* [~C] and [~R] are both single-column types (this is checked at run time).
+* [~C] is not a `boost::optional`, and nor are any of [~C]'s mapped members (if [~C] is a user-defined class, or a `std::tuple`), and nor are any of /their/ mapped members, etc. (this is checked at compile time).
+
+The result is an `exprn_mapper<`[~R]`>`.
+
+If the switch-expression and default-expression are both present, then the resulting `exprn_mapper<`[~R]`>` does the following when executed: It evaluates the switch-expression, then it evaluates the [~comparand]s in order, until one is found whose value is equal to the switch-expression's. Then it delegates to the corresponding [~result], which provides the result for the whole construct. If no matching [~comparand] is found, then it delegates to the default-expression.
+
+If the switch-expression is not present, then it as though it were present with a value `true`. So the execution process is the same, except that, instead of looking for a [~comparand] that evaluates to a value matching the switch, it looks for a [~comparand] that evaluates to `true`.
+
+If the default expression is not present, then quince supplies one, which is a default-constructed [~R].
+
+[heading Examples]
+
+    const query<std::string> commentary_about_x = points.select(
+        choose(
+            points->x,
+            when(0.0f, "Zero!"),
+            when(points->y, "Same as y!"),
+            "Nothing special."
+        )
+    );
+
+    const query<float> higher_coords = points.select(
+        choose(
+            when(points->x >= points->y, points->x),
+            points->y
+        )
+    );
+
+    // http://en.wikipedia.org/wiki/Quadrant_%28plane_geometry%29
+    //
+    const query<std::string> quadrants = points.select(
+        choose(
+            when(points->y >= 0.0f && points->x >= 0.0f, "I"),
+            when(points->y >= 0.0f && points->x < 0.0f, "II"),
+            when(points->y < 0.0f && points->x < 0.0f, "III"),
+            when(points->y < 0.0f && points->x >= 0.0f, "IV")
+        )
+    );
+
+    const query<std::string> quadrants_again = points.select(
+        choose(
+            when(
+                points->y >= 0.0f,
+                choose(when(points->x >= 0.0f, "I"), "II")
+            ),
+            choose(when(points->x < 0.0f, "III"), "IV")
+        )
+    );
+
+[endsect]

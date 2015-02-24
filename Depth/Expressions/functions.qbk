@@ -1,0 +1,158 @@
+[section Function Calls]
+
+[section Pre-wrapped functions]
+
+Quince defines C++ functions that wrap certain SQL functions; i.e. they build and return `exprn_mappers` that represent SQL function calls.
+
+E.g., if [~str] is some `abstract_mapper<std::string>`, then `length(str)` builds an `exprn_mapper<int32_t>` which, when executed, evaluates the SQL subexpression represented by `str`, and passes the result to the SQL =length= function.
+
+Here is a list of all the quince functions that wrap SQL functions in this way:
+
+[table
+[[Quince function name][Argument  is `abstract_mapper<`...`>`][Returns `exprn_mapper<`...`>`][SQL function name]]
+[[`abs`][`int16_t`][`int16_t`][=abs=]]
+[[`abs`][`int32_t`][`int32_t`][=abs=]]
+[[`abs`][`int64_t`][`int64_t`][=abs=]]
+[[`abs`][`float`][`float`][=abs=]]
+[[`abs`][`double`][`double`][=abs=]]
+[[`lower`][`std::string`][`std::string`][=lower=]]
+[[`upper`][`std::string`][`std::string`][=upper=]]
+[[`length`][`std::string`][`int32_t`][=length=]]
+[[`avg`][`int16_t`][`boost::optional<double>`][=avg=]]
+[[`avg`][`int32_t`][`boost::optional<double>`][=avg=]]
+[[`avg`][`int64_t`][`boost::optional<double>`][=avg=]]
+[[`avg`][`float`][`boost::optional<double>`][=avg=]]
+[[`avg`][`double`][`boost::optional<double>`][=avg=]]
+[[`count`][any type][`int64_t`][=count=]]
+[[`sum`][`int16_t`][`int64_t`][=sum=]]
+[[`sum`][`int32_t`][`int64_t`][=sum=]]
+[[`sum`][`int64_t`][`int64_t`][=sum=]]
+[[`sum`][`float`][`double`][=sum=]]
+[[`sum`][`double`][`double`][=sum=]]
+[[`max`][any single-column type [~T]][`boost::optional<`[~T]`>`][=max=]]
+[[`min`][any single-column type [~T]][`boost::optional<`[~T]`>`][=min=]]
+]
+
+[heading Function constants]
+
+Quince defines two function constants:
+
+* `count_all` is an `exprn_mapper<int64_t>` that wraps SQL's =COUNT(*)=
+* `empty` is a `predicate` (i.e. an `exprn_mapper<bool>`). It is defined as `count_all==int64_t(0)`.
+
+E.g.:
+
+    const query<int64_t> n_points = points.select(count_all);
+    const query<bool> no_points = points.select(empty);
+
+As we shall see, quince provides [link standard_evaluations special means] of creating and executing queries that end in `.select(count_all)` or `.select(empty)`.
+
+[endsect]
+
+[section ["Scalar] and ["Aggregate] Functions]
+
+Notice that some of the SQL functions are so-called "scalar functions" (e.g. =abs=) and others are so-called "aggregate functions" (e.g. =max=, =count=). That is a distinction in SQL semantics that quince simply passes through to application code. So:
+
+    const query<float> abs_xs = points.select(abs(points->x));
+    const query<boost::optional<float>> max_x = points.select(max(points->x));
+    const query<double> sum_x = points.select(sum(points->x));
+
+If you execute the query `abs_xs`, you get the absolute values of each `x` in `points`. There are as many results as there are records in the the table.
+
+If you execute `max_x`, you get the greatest of all the `x` values in `points`. That's one result only. If `points` is empty, then there is no greatest `x`, but there is still one result, /viz./ `boost::none`. (That's because SQL's =max= produces a single SQL =NULL=, and quince's `max()` passes it on.)
+
+SQL's =sum= also produces a single SQL =NULL= when there is no input, but I made an editorial decision not to pass /that/ on. Quince's `sum()` returns zero when there is nothing to add up. So if `points` is empty, the query `sum_x` produces a single `0.0`.
+
+We have seen some examples of queries that are guaranteed to produce just one computed result. Later we shall see that there are special means of [link queries.executing.evaluate executing such queries], and of [link expressions.scalar embedding them in other queries].
+
+[heading Special features of `exprn_mapper<boost::optional<`...`>>`]
+
+`exprn_mapper<boost::optional<`...`>>` provides the operators `*` and `->`, and the methods `is_initialized()` and `get_value_or()`, which you can use in the same way as the corresponding features of `optional_mapper<`...`>`
+[footnote In fact `exprn_mapper<boost::optional<`[~T]`>>` is a subclass of `optional_mapper<`[~T]`>`, so if you want to write code that deals polymorphically with both types, use `optional_mapper<`[~T]`>`.]:
+
+    const query<float> max_x_or_zero = points.select(max(points->x).get_value_or(0.f));
+
+Here `max(points->x).get_value_or(0.f)` is a server-side expression, i.e. the DBMS evaluates it all. In this context, `get_value_or()` is a wrapper for SQL's =coalesce=.
+
+This is the technique that `sum()` uses internally.
+
+[endsect]
+
+[section Writing Your Own Function Wrappers]
+
+Quince's wrappers let you call some SQL functions, but you may want to call others. Then the best approach is to define new wrappers, using the same technique that quince uses. E.g. here is quince's implementation of `length()`:
+
+    exprn_mapper<int32_t> 
+    length(const abstract_mapper<std::string> &arg) {
+        return function<int32_t>("length", arg);
+    }
+
+`length()` is delegating most of its work to `function()`, and that is what your wrappers should do too. Here's what you need to know:
+
+* `function()`'s template parameter is a C++ type that maps to the SQL function's return type, on any target DBMS. (The template parameter type may map to different SQL types on different DBMSes, and the function may return different SQL types on different DBMSes. That's okay as long as the two turn out the same on any given DBMS.)
+
+* `function()`'s first argument is the SQL name of the function you are wrapping.
+
+* Its remaining arguments are C++ representations of the SQL function arguments. There's just one in this case, but `function()` can take more. Their order corresponds to the SQL argument order.
+
+* If [~sqlarg] is some argument to the SQL function, and [~cpparg] is the corresponding argument to `function()`, then [~cpparg] must be of type [~T] or `abstract_mapper<`[~T]`>`, where [~T] is a C++ type that maps to [~sqlarg]'s type on any target DBMS. ([~T] may map to different SQL types on different DBMSes, and [~sqlarg] may have different SQL types on different DBMSes. That's okay as long as the two turn out the same on any given DBMS.).
+
+A word of caution. When you use `function()` to wrap some SQL function =foo=, quince cannot know how many arguments =foo= expects, nor what types they should be, nor what type =foo= returns. As the author of a wrapper, it is your duty to find that information and code it into your wrapper, so that call sites will have the benefit of static type checking. In particular:
+
+* Your wrapper's argument declarations enforce type safety on the way in: they stop anything of the wrong type from getting as far as `function()`.
+
+* The template parameter to `function()` enforces type safety on the way out, because `function<`[~T]`>()` returns an `exprn_mapper<`[~T]`>`, and whatever you do with that will be type-checked by the C++ compiler.
+
+[heading Allowing for =NULL=]
+
+Be especially careful to check whether the SQL function can return =NULL=. If it can, then the template parameter to `function()` should be a `boost::optional`. E.g. here is a possible definition of the 16-bit version of `max()`:
+
+    exprn_mapper<boost::optional<int16_t>>
+    max(const abstract_mapper<int16_t> &arg) {
+        return function<boost::optional<int16_t>>("max", arg);
+    }
+
+`function<boost::optional<int16_t>>()` returns an `exprn_mapper<boost::optional<int16_t>>`, which in this case we hand straight back to our caller. If we wanted to give the caller an `exprn_mapper<int16_t>` then we would have to provide a default, e.g.:
+
+    exprn_mapper<int16_t>
+    max_or_zero(const abstract_mapper<int16_t> &arg) {
+        return function<boost::optional<int16_t>>("max", arg).get_value_or(0);
+    }
+
+[heading Allowing for DBMS-dependent types]
+
+Often the arguments or return values of an SQL function depend on the DBMS. E.g. on PostgreSQL you can apply the SQL =abs= function to a =smallint= (which represents an `int16_t`), and the result will be a =smallint=; whereas on sqlite there is nothing like =smallint=: if you want to take the absolute value of an integer, no matter how small, you pass =abs= an =INTEGER=, which can hold up to 64 bits, and it returns an =INTEGER=.
+
+That sort of DBMS-dependency takes no effort. E.g. here is quince's implementation of the 16-bit overload of `abs()`:
+
+    exprn_mapper<int16_t>
+    abs(const abstract_mapper<int16_t> &arg) {
+        return function<int16_t>("abs", arg);
+    }
+
+We use the polymorphically mapped type `int16_t`, which quince_postgresql maps to =smallint=; and quince_sqlite backend maps to =INTEGER=. So it always turns out the same as SQL =abs='s  argument, and SQL =abs='s return value.
+
+Other cases are harder. Take `avg()`. On PostgreSQL, if you apply the SQL `avg` function to inputs of integral type, the result is a variable-precision type called =numeric=, which quince does not currently map to any C++ type at all. On sqlite, however, if you apply `avg` to inputs of integral type, the result is =REAL=.
+
+The approach we took with `abs()` is not immediately available, because there is no C++ type that maps to =numeric= on one DBMS and to =REAL= on the other.
+
+The solution is to ask for more help from the DBMSes. After evaluating =avg=, the DBMSes must convert the result to something that /is/ mapped by a single C++ type -- some C++ type that will be acceptable to all parties. In this case, I nominate `double`.
+
+So here's how quince implements `avg()` with an `int16_t` argument:
+
+    QUINCE_DEFINE_SERVER_ONLY_TYPE(any_avg);
+
+    exprn_mapper<boost::optional<double>>
+    avg(const abstract_mapper<int16_t> &arg) {
+        return cast<boost::optional<double>>(function<any_avg>("avg", arg));
+    }
+
+The first line defines a type `any_avg`, which will be the C++ counterpart of any type that SQL's =avg= returns, even allowing [^NULL]s
+[footnote because SQL's =avg= is an aggregate function that returns =NULL= on empty input.]
+. We will be using `any_avg` as if it were a mapped type, but only for intermediate values within server-side expressions. Its values will never get converted either to or from any C++ type, and its SQL typename will never be be mentioned: not in quince, not in backends, not in application code. So quince doesn't need to know anything about the type `any_avg`, except that we're using it consistently. The macro `QUINCE_DEFINE_SERVER_ONLY_TYPE` defines types that fit this very limited role.
+
+When `avg()` calls `function()`, to build the call to SQL's =avg= with its obscure, possibly =NULL= return type, the template parameter is `any_avg`. That causes `function()` to return an `exprn_mapper<any_avg>`. We pass that to `cast<boost::optional<double>>()`, which represents a server-side cast, from the possibly-=NULL= obscure thing to a possibly =NULL= value of whatever type is represented by `double` on the particular DBMS. The result is an `exprn_mapper<boost::optional<double>>`, which users can put to work in all the normal ways, safely and without regard to the chicanery that went into making it.
+
+[endsect]
+
+[endsect]

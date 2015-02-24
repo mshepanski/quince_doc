@@ -1,0 +1,26 @@
+[section Terminology]
+
+[#target]
+[h5 ["Target]]
+
+If a table object [~to] represents an SQL table at some site, and an actual SQL table [~st] exists at that site, then [~st] is called the /target/ of [~to].
+
+That is to say, [~st] is the target of [~to] when [~st] agrees with [~to] on the following points:
+
+* SQL table name,
+* database,
+* schema (PostgreSQL only), and
+* attached database (sqlite only).
+
+[#conforms_to]
+[h5 ["Conforms to]]
+
+An SQL table [~st] is said to /conform to/ a table object [~to] when:
+
+* [~st] is [~to]'s target,
+* [~st] has all the column names that [~to]'s value mapper uses,
+* those columns have the types that [~to]'s value mapper expects,
+* those columns' =NOT NULL= constraints have the settings that [~to]'s value mapper expects, and
+* [~st] does not have any other columns.
+
+[endsect]

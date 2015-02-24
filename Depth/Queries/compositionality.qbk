@@ -1,0 +1,71 @@
+[section Compositionality]
+
+[h2 /or:/ Where All This is Coming From]
+[h2 /or:/ The Thing About SQL I Don't Like]
+
+Quince has a couple of jobs. One is to bridge gulfs between SQL and C++ --gulfs of syntax, data typing, and data representation-- not because I dislike either language, but because I dislike gulfs.
+
+Quince's other job, and it is time I made this explicit, is to improve on something that I do see as a flaw in SQL. /SQL makes some tasks difficult that should be easy/. Consider:
+
+[variablelist
+[[Problem 1]
+[
+Given an SQL query [~Q], write an SQL query that produces all but the first five lines of [~Q]'s output.
+]]
+[[Problem 2]
+[
+Given an SQL query [~Q], write an SQL query that produces the same output as [~Q], but ordered on the column =SALARY=.
+]]
+[[Problem 3]
+[
+Given an SQL query [~Q], write an SQL query that produces those rows of [~Q]'s output for which the condition =AGE > 30= is true.
+]]
+]
+
+When you write SQL by hand, you probably apply solutions similar to these:
+
+[variablelist
+[[Solution 1]
+[
+Add =OFFSET 5= at the appropriate point in [~Q], unless [~Q] already had an =OFFSET= clause, in which case increase the offset value by 5; and in any event, it there was a =LIMIT= clause, change it to be five less than it was, or zero, whichever is greater.
+]]
+[[Solution 2]
+[
+Add =ORDER BY SALARY= at the appropriate point in [~Q] (unless [~Q] already had an =ORDERED BY= clause, in which case insert =SALARY= and a comma immediately after "ORDER BY") /unless/ there was a =LIMIT=, =OFFSET=, =DISTINCT=, =GROUP BY=, =UNION=, =INTERSECT= or =EXCEPT= clause, in which case forget everything I've just said and sink [~Q] into a =FROM=, like so: =SELECT * FROM (=[~Q]=) AS Q_ALIAS ORDER BY Q_ALIAS.SALARY=.
+]]
+[[Solution 3]
+[
+Add =WHERE AGE > 30= at the appropriate point in [~Q] (unless [~Q] already had a =WHERE= clause, in which case insert "AGE > 30 AND" immediately after =WHERE=, and parenthesize the rest of the clause if necessary) /unless/ [~Q] used =GROUP BY=, in which case follow the previous instruction but with =HAVING= substituted for =WHERE=, /unless/ there was a =LIMIT=, =OFFSET=, =DISTINCT=, =UNION=, =INTERSECT= or =EXCEPT= clause, in which case forget everything I've just said and sink [~Q] into a =FROM=, like so: =SELECT * FROM (=[~Q]=) AS Q_ALIAS WHERE Q_ALIAS.AGE > 30=.
+]]
+]
+
+(If you were writing algorithms to solve these problems mechanically, for any input string [~Q] containing an SQL query, you might skip the case analyses and always sink [~Q] into a =FROM=.; but my point here is about the experience of writing queries by hand.)
+
+In order to understand the structure of ['QU]eries ['IN] ['C]++ ['E]xpressions, it is important to understand this negative motivation: I don't want the experience of writing queries to be as complex and case-driven as the experience of writing SQL. In particular, when you're writing one part of a quince expression you should not need to know so much about the other parts.
+
+So the quince analogs of problems 1-3:
+
+[variablelist
+[[Problem 1']
+[
+Given a query [~q], build a `query` that produces all but the first five lines of [~q]'s output.
+]]
+[[Problem 2']
+[
+Given a query [~q] with value type `employee`, build a `query<employee>` that produces the same output as [~q], but ordered on `q->salary`.
+]]
+[[Problem 3']
+[
+Given a query [~q] with value type `animal`, build a `query<animal>` that produces those records of [~q]'s output for which the condition `q->age > 30` is true.
+]]
+]
+
+all have easy solutions (`q.skip(5)`, `q.order(q->salary)`, and `q.where(q->age > 30)` respectively), which work regardless of whether `limit()`, `group()` etc. were used in the building of [~q].
+
+This is a more-than-skin-deep difference between quince expressions and SQL, and it implies that quince's process for turning queries into SQL is not entirely direct: the series of clauses quince decides to generate do not correspond 1-1 with the quince function calls that were used to build the query.
+
+What, you thought you were in charge? Well you are, up to a point. You are free to nest `join()`s inside `intersect()`s inside `scalar()`s inside `select()`s and so on, and quince will generate SQL that faithfully reflects your architecture. But beneath the level of quince's public functions, there are decisions to be made about how to compose the SQL on a more detailed level. Quince considers those micro-decisions to be implementation matters, and it takes them off your hands
+[footnote It probably doesn't matter, but FYI: quince's strategy is to distinguish cases in the manner of Solutions 1-3 above, only sinking a query into a =FROM= if it sees no alternative.]
+.
+
+[endsect]

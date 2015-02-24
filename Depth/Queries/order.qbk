@@ -1,0 +1,33 @@
+[section:order `order()`]
+
+For any query [~q], [~q]`.order(`...`)` builds a query whose output is [~q]'s output, sorted in a specified order. It's a wrapper for SQL's =ORDER BY=.
+
+[h4 Use ascending orders by default ...]
+
+For any query [~q], you can call [~q]`.order(`[~exprn0]`,` [~exprn1]`,` ...`)`, provided that:
+
+* each [~exprni] is an `abstract_mapper<`[~Ti]`>` for some mapped type [~Ti].
+
+[~q]'s value mapper will be [link expressions.visibility visible] to each [~exprni].
+
+[~q]`.order(`[~exprn0]`,` [~exprn1]`,` ...`)` returns a `query` with the following characteristics:
+
+* Its value type is the same as [~q]'s
+* Its value mapper is identical to [~q]'s.
+* Its output consists of all the records that [~q] would produce, ordered lexicographically by the [~exprni]s, with [~exprn0] the most significant, [~exprn1] the next most significant and so on.
+* The ordering for each [~exprni] is as follows:
+ * If [~Ti] is a statically mapped type, it's the ordering regime described [link optional_order here], [link tuple_order here], or [link class_order here].
+ * If [~Ti] is a polymorphically mapped type, it's the DBMS's ordering for the SQL type to which [~Ti] is mapped.
+
+[#ascending_descending]
+[h4 ... or specify ascending or descending orders]
+
+To specify that one of the [~exprni]'s is to be in descending order, apply the prefix operator `-` to it. To specify (redundantly) that it is to be in ascending order, apply the prefix operator `+`. This works whether [~Ti] is an arithmetic type or not.
+
+[heading `order(`...`).order(`...`).order(`...`)`...]
+
+If we chain `order(`...`)`calls together, e.g. [~q]`.order(`[~A]`).order(`[~B]`).order(`[~C]`)`, then pipeline semantics applies as usual. So the final (hence most significant) ordering is by [~C].
+
+At each stage the order is [@http://en.wikipedia.org/wiki/Category:Stable_sorts stable] with respect to the previous stages, so it's equivalent to [~q]`.order(`[~C]`,` [~B]`,` [~A]`)`.
+
+[endsect]
