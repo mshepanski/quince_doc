@@ -120,7 +120,7 @@ Now that we have a database object, the rest of our program will not mention Pos
     serial_table<screen> screens(db, "screens", &screen::id);
 
 [heading Remarks]
-These definitions create four objects representing tables. The actual SQL tables aren't being created yet. In fact these constructors don't communicate with the DBMS at all; they just collect details for later.
+These definitions create three objects representing tables. The actual SQL tables aren't being created yet. In fact these constructors don't communicate with the DBMS at all; they just collect details for later.
 
 The template parameter (e.g. `movie`) gives the table's /value type/. This is the C++ type that each complete row of the table represents.
 

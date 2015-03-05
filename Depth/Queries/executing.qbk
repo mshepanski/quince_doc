@@ -12,7 +12,7 @@ If the iterator is destroyed before it enters the end state, then the query's ex
 
 An iterator may (depending on the DBMS) buffer some rows of raw DBMS output. It also keeps a C++ representation of the current row, and its `operator*()` and `operator->()` return a const reference and a const pointer, respectively, to that.
 
-These iterators conform to the SQL /InputIterator/ concept, so for deeper treatment I refer to the documentation [@http://en.cppreference.com/w/cpp/concept/InputIterator here], and the linked pages, especially [@http://en.cppreference.com/w/cpp/concept/Iterator here] and [@http://en.cppreference.com/w/cpp/iterator/iterator_traits here].
+These iterators conform to the STL /InputIterator/ concept, so for deeper treatment I refer to the documentation [@http://en.cppreference.com/w/cpp/concept/InputIterator here], and the linked pages, especially [@http://en.cppreference.com/w/cpp/concept/Iterator here] and [@http://en.cppreference.com/w/cpp/iterator/iterator_traits here].
 
 Those pages leave some terms for iterator implementations to define, and our query iterators define them as follows:
 

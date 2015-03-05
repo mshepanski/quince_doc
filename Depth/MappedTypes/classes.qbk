@@ -116,6 +116,6 @@ When classes are compared on the server side with the relational operators, or s
 
 `class_mapper` represents data by delegating to each of the base mappers and member mappers.
 
-When it delegates to member mapper [~m], it adds the name [~m] and a period to all the column names that [~m] produces, so those names cannot clash with column names that the other member mapppers produce.
+When a class mapper with name [~N] delegates to member mapper [~m], it prepends [~N] and a period to all the column names that [~m] produces. This principle is applied recursively, so that classes can be nested to any depth, and the column names are always fully qualified, to avoid clashes.
 
 [endsect]

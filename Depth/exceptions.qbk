@@ -16,7 +16,7 @@ Here is a list of all the classes of exception that quince and the backends thro
 
 [table
     [[Class] [Base class] [Cause]]
-    [[`exception`][`std::exception`][Any runtime error that quince detects (see subclasses)]]
+    [[`exception`][`std::exception`][Any exceptional condition that quince detects (see subclasses)]]
     [[`deadlock_exception`][`exception`][A deadlock was detected. Not an error.]]
     [[`failed_connection_exception`][`exception`][Could not establish communication with a DBMS]]
     [[`broken_connection_exception`][`exception`][The connection to the DBMS was lost.]]
