@@ -1,5 +1,16 @@
 [section Set-Theoretic Operations]
 
+'''
+<!--
+
+//          Copyright Michael Shepanski 2014.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file ../../LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+-->
+'''
+
 `union_()`, `intersect()`, and `except()` build queries that produce a set-theoretic combination (union, intersection, or set difference) of the outputs of two other queries. `union_all()`, `intersect_all()`, and `except_all()` are similar, but they preserve repetition of elements. These six methods are wrappers for SQL's =UNION=, =INTERSECT=, and =EXCEPT=, with and without =ALL=.
 
 (`union_` is not a typo. That identifier wears an underscore on purpose, to avoid being mistaken for a C++ keyword.)

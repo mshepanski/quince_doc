@@ -1,5 +1,16 @@
 [section:scalar Scalar Subqueries]
 
+'''
+<!--
+
+//          Copyright Michael Shepanski 2014.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file ../../LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+-->
+'''
+
 If [~q] is a query with value type [~T], and if:
 
 * [~T] is a single-column type (this is checked at run time) and

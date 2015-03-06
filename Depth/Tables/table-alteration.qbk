@@ -1,5 +1,16 @@
 [section Table Alteration]
 
+'''
+<!--
+
+//          Copyright Michael Shepanski 2014.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file ../../LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+-->
+'''
+
 [section `rename_from()`]
 
 All tables have a `rename_from()` method, which changes some SQL table's name /to/ the table object's target name. It's a wrapper for SQL's =ALTER TABLE= ... =RENAME TO=.

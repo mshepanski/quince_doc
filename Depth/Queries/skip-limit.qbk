@@ -1,5 +1,16 @@
 [section `skip()` and `limit()`]
 
+'''
+<!--
+
+//          Copyright Michael Shepanski 2014.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file ../../LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+-->
+'''
+
 For any query [~q], [~q]`.skip(`...`)` and `q.limit(`...`)` build queries whose output is like [~q]'s output, but cropped at the beginning (`skip`) or at the end (`limit`). Together they are wrappers for SQL's =LIMIT= and =OFFSET=.
 
 For any query [~q], and any value [~n] of type `uint32_t`, [~q]`.skip(`[~n]`)` and [~q]`.limit(`[~n]`)` return `query`s with the following characteristics.

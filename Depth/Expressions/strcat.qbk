@@ -1,5 +1,16 @@
 [section:strcat String Concatenation]
 
+'''
+<!--
+
+//          Copyright Michael Shepanski 2014.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file ../../LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+-->
+'''
+
 Quince defines an overload of the infix binary operator `+`, which builds and returns an `exprn_mapper<std::string>` that represents string concatenation. It's a wrapper for the SQL operator =||=.
 
 This overload applies when:

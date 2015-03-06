@@ -3,6 +3,17 @@
     [id getting_started]
 ]
 
+'''
+<!--
+
+//          Copyright Michael Shepanski 2014.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file ../LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+-->
+'''
+
 In this chapter I shall guide you through the writing of a small but complete quince application. We'll do it all in one source file. So create =gettingstarted.cpp= in your text editor, and let's begin.
 
 [section Ahem]

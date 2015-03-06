@@ -1,5 +1,16 @@
 [section:construction Construction and Primary Key]
 
+'''
+<!--
+
+//          Copyright Michael Shepanski 2014.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file ../../LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+-->
+'''
+
 To get started, we will need a database object. Its type is backend-specific: either `quince_postgresql::database` or `quince_sqlite::database`. [link quince_postgresql.constructor Later] [link quince_sqlite.constructor sections] describe how to construct these, so for now I'll assume that you have either:
 
     extern quince_postgresql::database db;

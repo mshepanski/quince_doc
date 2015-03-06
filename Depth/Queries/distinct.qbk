@@ -1,5 +1,16 @@
 [section `distinct()` and `distinct_on()`]
 
+'''
+<!--
+
+//          Copyright Michael Shepanski 2014.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file ../../LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+-->
+'''
+
 For any query [~q], [~q]`.distinct(`...`)` builds a query whose output is [~q]'s output, but with exact duplicates removed. It's a wrapper for SQL's =DISTINCT=.
 
 [~q]`.distinct()` returns a `query` with the following characteristics.

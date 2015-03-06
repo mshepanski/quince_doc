@@ -1,5 +1,16 @@
 [section:manipulation Data Manipulation]
 
+'''
+<!--
+
+//          Copyright Michael Shepanski 2014.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file ../../LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+-->
+'''
+
 [section `insert()`]
 
 `table` has an `insert()` method, which takes one value, of the `table`'s value type, as its argument, and adds that value to the table. It's a wrapper for SQL's =INSERT=.

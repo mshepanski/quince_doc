@@ -1,5 +1,16 @@
 [section Life Cycle of a Table Object]
 
+'''
+<!--
+
+//          Copyright Michael Shepanski 2014.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file ../../LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+-->
+'''
+
 A table object is always in one of two states: /closed/ or /open/. It becomes open when quince verifies that its [link target] exists and [link conforms_to conforms to] it, and it is closed whenever quince considers this to be unverified.
 
 When you construct a table [~mytable], you specify its site. Its target might or might not exist already, and if it exists it might or might not conform to [~mytable]. The constructor doesn't communicate with the DBMS, so none of these things are confirmed. Therefore [~mytable] is in the closed state.

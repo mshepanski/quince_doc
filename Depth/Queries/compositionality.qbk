@@ -1,5 +1,16 @@
 [section Compositionality]
 
+'''
+<!--
+
+//          Copyright Michael Shepanski 2014.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file ../../LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+-->
+'''
+
 [h2 /or:/ Where All This is Coming From]
 [h2 /or:/ The Thing About SQL I Don't Like]
 

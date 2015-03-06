@@ -1,5 +1,16 @@
 [section:select `select()`]
 
+'''
+<!--
+
+//          Copyright Michael Shepanski 2014.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file ../../LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+-->
+'''
+
 For any query [~q], [~q]`.select(`...`)` builds a query whose values are extracted or computed from the values that [~q] would have produced. Roughly speaking, expressions passed as arguments to `select(`...`)` are to quince what expressions in a ["select-list] are to SQL.
 
 [section With One Argument]

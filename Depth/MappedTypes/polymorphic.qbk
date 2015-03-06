@@ -1,5 +1,16 @@
 [section Polymorphically Mapped Types]
 
+'''
+<!--
+
+//          Copyright Michael Shepanski 2014.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file ../../LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+-->
+'''
+
 Polymorphically mapped types are C++ types that can have different concrete mapper clases --and hence different column representations-- to suit different circumstances. E.g. a C++ `bool` has one mapper class that represents it as an SQL =boolean= for PostgreSQL, and another that represents it as an SQL =integer= for sqlite; and an application can give it still more mapper classes, to represent it in [link custom customized ways] on a per-database or per-table basis.
 
 All `bool`'s concrete mapper classes are supplied by the backend libraries and (possibly) by application code; not by quince itself. That is the case for:

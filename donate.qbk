@@ -3,6 +3,17 @@
     [id Donate]
 ]
 
+'''
+<!--
+
+//          Copyright Michael Shepanski 2014.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+-->
+'''
+
 I wrote quince 1.0 for fun, but now that it's here, if it has brought you either profit or amusement, then please consider a bit of retrospective /quid pro quo/ (or quids /pro/ quince).
 
 And there's something else. I'd love to roll on in to quince 2.0. There is much to be done: catching up with PostgreSQL and sqlite features that 1.0 doesn't cover, adding backends for new DBMSes, optimizations, maybe even adding specialized libraries with higher-level ORM features ... but for now, everything depends on your support. So if you would like to see quince taken to the next stage, why not give it a push?

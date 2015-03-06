@@ -1,5 +1,16 @@
 [section `predicate`s and Logical Operations]
 
+'''
+<!--
+
+//          Copyright Michael Shepanski 2014.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file ../../LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+-->
+'''
+
 `predicate` is a typedef name of `exprn_mapper<bool>`. We know that any `exprn_mapper<`[~T]`>` can be implicitly constructed from a value of type [~T], so there are constants `predicate(true)` and `predicate(false)`. We also saw that [link expressions.relational the relational operators] produce `predicate`s, and we are about to meet other devices that produce them. In this section it's the /logical operators/, i.e. operators that produce `predicate`s from other `predicate`s.
 
 Quince defines overloads of the infix binary operators `&&` and `||`, and of the prefix unary operator `!`.

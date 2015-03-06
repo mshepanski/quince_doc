@@ -3,6 +3,17 @@
     [id custom]
 ]
 
+'''
+<!--
+
+//          Copyright Michael Shepanski 2014.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file ../../LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+-->
+'''
+
 [section Degrees of Freedom]
 
 The signature feature of polymorphically mapped types is that application code doesn't know what their concrete mapper classes are. E.g. code that stores and retrieves `uint16_t`s knows that they're mapped by some class that implements the interface `abstract_mapper<uint16_t>`, but it doesn't know which class; and so far, we haven't had much to say about it.

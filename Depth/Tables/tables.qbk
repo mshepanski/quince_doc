@@ -2,6 +2,17 @@
     [quickbook 1.6]
 ]
 
+'''
+<!--
+
+//          Copyright Michael Shepanski 2014.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file ../../LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+-->
+'''
+
 [section Tables in General ]
 
 I use the noun ["table], in normal font, for objects of two C++ types: `table` and `serial_table`. There are differences between them, as we shall see, but they have 99% of their DNA in common. Every table has the following features:

@@ -1,5 +1,16 @@
 [section:executing Executing Queries]
 
+'''
+<!--
+
+//          Copyright Michael Shepanski 2014.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file ../../LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+-->
+'''
+
 [section With Multi-Record Output: `begin()` and `const_iterator`]
 
 The most general way to execute a query is by calling its `begin()` method. That returns an /iterator/, and the iterator provides access to all of the query's output, whether it be nothing, a single record, or so much that it can't fit in memory all at once. On PostgreSQL, the iterator wraps an SQL =CURSOR=.

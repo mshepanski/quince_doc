@@ -1,5 +1,16 @@
 [section:collective Collective Comparisons (PostgreSQL only)]
 
+'''
+<!--
+
+//          Copyright Michael Shepanski 2014.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file ../../LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+-->
+'''
+
 We have seen how `in()` can build server-side expressions that test whether the value of some subexpression is /equal/ to /some/ of the results of a subquery. Collective comparisons are more general. Instead of equality we can choose any of the six relational operators; and we can choose to ask whether /some/, or whether /all/, of the subquery's results pass the test.
 
 Caveats: collective comparisons are only available for PostgreSQL (this is checked at run time), and the series of comparands can only be given via a subquery, not directly in the commandline arguments, and not via a vector.

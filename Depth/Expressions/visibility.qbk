@@ -1,5 +1,16 @@
 [section Visibility]
 
+'''
+<!--
+
+//          Copyright Michael Shepanski 2014.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file ../../LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+-->
+'''
+
 So far in this chapter, we have seen how to build well formed expressions for server-side execution. We've reached the point where we can build such an expression, and we can hold it in an `exprn_mapper` variable. But before we can execute it, we need to place it in some other context, e.g. a query, and that requires something else: compatibility with the context.
 
 Type compatibility is one necessary aspect (e.g. you can't use `points->x + 3.14f` in a context that requires a `predicate` or an `abstract_mapper<std::string>`), but type compatibility is not sufficient. For consider this: `points->x + 3.14f` is allowed here:

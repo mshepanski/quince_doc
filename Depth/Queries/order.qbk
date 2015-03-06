@@ -1,5 +1,16 @@
 [section:order `order()`]
 
+'''
+<!--
+
+//          Copyright Michael Shepanski 2014.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file ../../LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+-->
+'''
+
 For any query [~q], [~q]`.order(`...`)` builds a query whose output is [~q]'s output, sorted in a specified order. It's a wrapper for SQL's =ORDER BY=.
 
 [h4 Use ascending orders by default ...]

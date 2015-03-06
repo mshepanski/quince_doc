@@ -1,5 +1,16 @@
 [section Arithmetic Operations ]
 
+'''
+<!--
+
+//          Copyright Michael Shepanski 2014.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file ../../LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+-->
+'''
+
 Quince defines overloads of the infix binary operators `+`, `-`, `*` and `/`, and of the prefix unary operators `+` and `-`. All of these overloads build and return `exprn_mapper`s that represent server-side arithmetic operations.
 
 The overloads of the infix operators apply when there is a mapped type [~T], such that one of the operands is an `abstract_mapper<`[~T]`>`, and the other operand is an `abstract_mapper<`[~T]`>` or a [~T].

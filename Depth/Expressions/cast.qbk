@@ -1,5 +1,16 @@
 [section:cast `cast<`...`>()`]
 
+'''
+<!--
+
+//          Copyright Michael Shepanski 2014.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file ../../LICENSE_1_0.txt or copy at
+//          http://www.boost.org/LICENSE_1_0.txt)
+
+-->
+'''
+
 Quince's `cast<`...`>()` function builds and returns an SQL expression that represents a server-side type conversion operation. It's a wrapper for the SQL keyword =CAST=.
 
 `cast<`[~T]`>(`[~arg]`)` is allowed when [~T] is a mapped type, and the target database's mapping (allowing for any [link custom.deployment.database per-database customizations]) for [~T] represents it as some single-column SQL type [~t]. Then `cast<`[~T]`>(`[~arg]`)` returns an `exprn_mapper<`[~T]`>` that, when executed, evaluates the subexpression that `arg` represents, and applies the SQL conversion `CAST(`...` AS `[~t]`)` to the result.
