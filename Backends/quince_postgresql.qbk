@@ -76,6 +76,9 @@ The following table lists the C++ types for which quince_postgresql provides [li
 [[`double`][=double precision=]]
 [[`std::string`][=text=]]
 [[`std::vector<uint8_t>`][=bytea=]]
+[[`quince::timestamp`
+[footnote The C++ type `quince::timestamp` is a trivial wrapper over `std::string`.]
+][=timestamp=]]
 ]
 
 [endsect]
@@ -99,7 +102,10 @@ The following table shows the concrete mapper classes that quince_postgresql wil
 [[`uint64_t`][`reinterpret_cast_mapper<uint64_t, direct_mapper<int64_t>, uint64_t(0x8000000000000000)>`]]
 [[`std::string`][`direct_mapper<std::string>`]]
 [[`std::vector<uint8_t>`][`direct_mapper<std::vector<uint8_t>>`]]
-[[`serial`][`serial_mapper`]]
+[[`quince::serial`][`serial_mapper`]]
+[[`boost::posix_time::ptime`][`quince_postgresql::ptime_mapper`[footnote
+`quince_postgresql::ptime_mapper` represents a `boost::posix_time::ptime` by delegating to `direct_mapper<timestamp>`, and converting to strings of the form YYYY-mmm-DD HH:MM:SS.fff on the way out, and converting from those strings on the way in.
+]]]
 ]
 
 [endsect]

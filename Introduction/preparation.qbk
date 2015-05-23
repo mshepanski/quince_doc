@@ -52,6 +52,7 @@ Many of the boost features are in headers, but you will need to have compiled ve
 * Boost.System
 * Boost.Thread
 * Boost.Filesystem
+* Boost.Date_Time
 
 [heading Boost.Build]
 

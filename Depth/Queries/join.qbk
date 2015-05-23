@@ -252,7 +252,7 @@ Every table has an `alias()` method, which creates and returns a `table_alias` o
 
 A `table_alias` is very much like the table that made it. `movies_alias` represents the same SQL table that `movies` represents, and, like `movies`, it is a kind of query. So it can be executed, or used to build more complex queries. It has a value type (the same as `movies`'s), and it has a value mapper.
 
-And its value mapper is very much like `movies`'s value mapper: it has the same type (`class_mapper<movie>`), and it knows how to map between `movie` objects and columns in the target SQL table. But the two mappers are not identical: when `movies_alias` and `movies` are used in the same query, their mappers behave /as if/ two distinct SQL tables were involved, and each mapper belonged a different one.
+And its value mapper is very much like `movies`'s value mapper: it has the same type (`class_mapper<movie>`), and it knows how to map between `movie` objects and columns in the target SQL table. But the two mappers are not identical: when `movies_alias` and `movies` are used in the same query, their mappers behave /as if/ two distinct SQL tables were involved, and each mapper belonged to a different one.
 
 This lets us solve the first problem case:
 

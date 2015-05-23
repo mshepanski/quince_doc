@@ -35,7 +35,7 @@ All the identifiers that quince defines are in namespace `quince`
 [footnote The [link class_mapper_detail exceptions to this rule] are, quite literally, not worth mentioning. They are identifiers that you never use in your code and I shall not use any of them in this document.]
 , so the `using` directive brings them all into scope. I acknowledge that `using` directives are dubious style, and in a real application it's better to have a specific `using` declaration for each quince identifier that you use a lot. I'm just keeping it brief for the tour.
 
-Namespaces for application code (e.g. `cinemascope`) are always in style, but when you use quince they become a matter of necessity. Definitions of mapped classes (such as we're about to write) do not work unless they are in some named namespace.
+Namespaces for application code (e.g. `cinemascope`) are always in style, but when you use quince they become a necessity. Definitions of mapped classes (such as we're about to write) do not work unless they are in some named namespace.
 
 [endsect]
 

@@ -29,7 +29,7 @@ For any query [~q], you can call [~q]`.distinct_on(`[~exprn0]`,` [~exprn1]`,` ..
 
 [~q]'s value mapper will be [link expressions.visibility visible] to each [~exprni].
 
-[~q]`.order(`[~exprn0]`,` [~exprn1]`,` ...`)` returns a `query`, with the following characteristics:
+[~q]`.order(`[~exprn0]`,` [~exprn1]`,` ...`)` returns a `query` with the following characteristics:
 
 * Its value type is the same as [~q]'s.
 * its value mapper is identical to [~q]'s.

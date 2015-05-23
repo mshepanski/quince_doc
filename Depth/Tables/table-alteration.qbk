@@ -17,7 +17,7 @@ All tables have a `rename_from()` method, which changes some SQL table's name /t
 
 The form is [~t]`.rename_from(`[~oldname]`)`, where [~t] is a table object, and [~oldname] is a `std::string` containing the current SQL name of some table.
 
-`rename()` cannot move a table from one PostgreSQL schema to another, or from one sqlite attached database to another. So [~oldname] must be a [link binomen one-part name]: the local name of an existing table within the same schema or attached database as [~t]'s target.
+`rename_from()` cannot move a table from one PostgreSQL schema to another, or from one sqlite attached database to another. So [~oldname] must be a [link binomen one-part name]: the local name of an existing table within the same schema or attached database as [~t]'s target.
 
 [endsect]
 
@@ -106,7 +106,7 @@ And then, some time after the construction of `db`, we construct the new table o
 
     table<point_xz> new_points(db, "points", &point_xz::x);
 
-Notice that `new_points` shares the same target as `points`. Furthermore, now that that target has only the columns =x= and =y=, each of type =REAL= and each with its =NOT NULL= constraint set, it conforms to `new_points`. So this will succeed:
+Notice that `new_points` shares the same target as `points`. Furthermore, now that that target has only the columns =x= and =z=, each of type =REAL= and each with its =NOT NULL= constraint set, it conforms to `new_points`. So this will succeed:
 
     // somewhere after new_points's construction and points's drop_field() call:
     new_points.open();

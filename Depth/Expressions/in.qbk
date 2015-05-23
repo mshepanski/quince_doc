@@ -56,7 +56,7 @@ In this case the comparands are the outputs of the query.
     const exprn_mapper<float> exprn3_3(3.3f);
     const exprn_mapper<float> exprn6_8(6.8f);
     const exprn_mapper<float> y_squared = points->y * points->y;
-    const std::vector<const abstract_mapper<float>*> special_x_values{&exprn3_3, &exprn8_8, &y_squared};
+    const std::vector<const abstract_mapper<float>*> special_x_values{&exprn3_3, &exprn6_8, &y_squared};
     const query<point> special_points_again =
         points
         .where(in(points->x, special_x_values));

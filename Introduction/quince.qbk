@@ -247,6 +247,7 @@ How far you go in the direction of monster queries is up to you, the application
     * single- and double-precision floating-point numbers,
     * `std::string`,
     * `std::vector<uint8_t>` (i.e. a blob),
+    * `boost::posix_time::ptime`,
     * `boost::optional<`[~T]`>`, where [~T] is any type that quince can map.
     * `std::tuple<`[~T0], [~T1] ...`>`, where [~T0], [~T1] ... are any types that quince can map.
     * user-defined classes (including structs), whose members are of any types that quince can map.

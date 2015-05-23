@@ -21,6 +21,7 @@ All `bool`'s concrete mapper classes are supplied by the backend libraries and (
 * `float` and `double`
 * `std::string`
 * `std::vector<uint8_t>`
+* `boost::posix_time::ptime`
 
 Quince does, however, provide a concrete mapper class for `serial`. Future backends might provide their own, but quince_postgresql and quince_sqlite have no need to do so.
 
